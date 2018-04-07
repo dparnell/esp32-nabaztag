@@ -12,6 +12,7 @@
 #include "esp_wifi.h"
 #include <esp_event_loop.h>
 
+static int wifi_initialized = 0;
 static int wifi_status = 1;  // RT2501_S_IDLE
 
 #if CONFIG_FREERTOS_UNICORE
@@ -27,7 +28,32 @@ static TaskHandle_t _network_event_task_handle = NULL;
 static void _network_event_task(void * arg){
     system_event_t *event = NULL;
     for (;;) {
-        if(xQueueReceive(_network_event_queue, &event, portMAX_DELAY) == pdTRUE){
+        if(xQueueReceive(_network_event_queue, &event, portMAX_DELAY) == pdTRUE) {
+          if(event->event_id == SYSTEM_EVENT_SCAN_DONE) {
+            // WiFiScanClass::_scanDone();
+          } else if(event->event_id == SYSTEM_EVENT_STA_DISCONNECTED) {
+            uint8_t reason = event->event_info.disconnected.reason;
+            // log_w("Reason: %u - %s", reason, reason2str(reason));
+            if(reason == WIFI_REASON_NO_AP_FOUND) {
+              wifi_status = 0; // RT2501_S_BROKEN
+            } else if(reason == WIFI_REASON_AUTH_FAIL || reason == WIFI_REASON_ASSOC_FAIL) {
+              wifi_status = 0; // RT2501_S_BROKEN
+            } else if(reason == WIFI_REASON_BEACON_TIMEOUT || reason == WIFI_REASON_HANDSHAKE_TIMEOUT) {
+              wifi_status = 3; // RT2501_S_CONNECTING
+            } else if(reason == WIFI_REASON_AUTH_EXPIRE) {
+              wifi_status = 3; // RT2501_S_CONNECTING
+            } else {
+              wifi_status = 0; // RT2501_S_BROKEN
+            }
+          } else if(event->event_id == SYSTEM_EVENT_STA_START) {
+              wifi_status = 1; // RT2501_S_IDLE
+          } else if(event->event_id == SYSTEM_EVENT_STA_STOP) {
+              wifi_status = 1; // RT2501_S_IDLE
+          } else if(event->event_id == SYSTEM_EVENT_STA_CONNECTED) {
+            wifi_status = 3; // RT2501_S_CONNECTING
+          } else if(event->event_id == SYSTEM_EVENT_STA_GOT_IP) {
+            wifi_status = 4; // RT2501_S_CONNECTED
+          }
             // WiFiGenericClass::_eventCallback(arg, event);
         }
     }
@@ -62,6 +88,9 @@ static void _start_network_event_task(){
 }
 
 void netInit() {
+  wifi_initialized = 0;
+  wifi_status = 1; // IDLE
+
   _start_network_event_task();
   tcpip_adapter_init();
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
@@ -70,44 +99,21 @@ void netInit() {
     printf("esp_wifi_init %d", err);
   } else {
     esp_wifi_set_storage(WIFI_STORAGE_RAM);
-    esp_wifi_set_mode(WIFI_MODE_NULL);  
+    esp_wifi_set_mode(WIFI_MODE_NULL);
   }
 }
 
 int netState()
 {
-  wifi_mode_t mode;
-  esp_wifi_get_mode(&mode);
-  if(mode == WIFI_MODE_AP) {
-    return 5; // RT2501_S_MASTER
+  if(wifi_initialized) {
+    wifi_mode_t mode;
+    esp_wifi_get_mode(&mode);
+    if(mode == WIFI_MODE_AP) {
+      return 5; // RT2501_S_MASTER
+    }
   }
 
   return wifi_status;
-  /*
-  int status = WiFi.status();
-  // printf("netState: %d\n", status);
-
-  switch(status) {
-    case WL_NO_SHIELD:
-      return 1; // RT2501_S_IDLE
-    case WL_IDLE_STATUS:
-      return 1; // RT2501_S_IDLE
-    case WL_NO_SSID_AVAIL:
-      return 0; // RT2501_S_BROKEN
-    case WL_SCAN_COMPLETED:
-      return 2; // RT2501_S_SCAN
-    case WL_CONNECTED:
-      return 4; // RT2501_S_CONNECTED
-    case WL_CONNECT_FAILED:
-      return 0; // RT2501_S_BROKEN
-    case WL_CONNECTION_LOST:
-      return 3; // RT2501_S_CONNECTING
-    case WL_DISCONNECTED:
-      return 0; // RT2501_S_BROKEN
-    default:
-      return 0; // RT2501_S_BROKEN
-  }
-  */
 }
 
 int netSend(char* src,int indexsrc,int lentosend,int lensrc,char* macdst,int inddst,int lendst,int speed)
@@ -165,11 +171,12 @@ int netChk(char* src, int indexsrc, int lentosend, int lensrc, unsigned int val)
 
 void netSetmode(int mode, char* ssid, int _chn)
 {
+  wifi_initialized = 1;
   printf("netSetMode: %d - %s\n", mode, ssid);
 
     wifi_init_config_t wifiInitializationConfig = WIFI_INIT_CONFIG_DEFAULT();
     esp_wifi_init(&wifiInitializationConfig);
-    esp_wifi_set_storage(WIFI_STORAGE_RAM);  
+    esp_wifi_set_storage(WIFI_STORAGE_RAM);
 
   if(mode == 1) {
     // set access point mode
@@ -190,7 +197,7 @@ void netSetmode(int mode, char* ssid, int _chn)
     ap_config.ap.ssid_hidden = 0;
     ap_config.ap.max_connection = 4;
     ap_config.ap.beacon_interval = 100;
- 
+
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config));
   } else {
@@ -199,7 +206,7 @@ void netSetmode(int mode, char* ssid, int _chn)
     // WiFi.mode(WIFI_STA);
   }
 
-    ESP_ERROR_CHECK(esp_wifi_start());  
+    ESP_ERROR_CHECK(esp_wifi_start());
 }
 
 void netScan(char* ssid)
