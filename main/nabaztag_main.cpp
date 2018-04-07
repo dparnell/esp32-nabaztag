@@ -28,19 +28,19 @@ void simuSetMotor(int i,int val);
 
 #define BUTTON_1_PIN GPIO_NUM_34
 #define BUTTON_2_PIN GPIO_NUM_35
-#define PIXEL_COUNT 22
-#define PIXEL_PIN GPIO_NUM_22
 
-#define ADJUST_BRIGHTNESS(v) ((v))
+#define ADJUST_BRIGHTNESS(v) ((v / 16))
 
-static rgbVal pixels[PIXEL_COUNT];
+
+static rgbVal* pixels = NULL;
 
 void simuSetLed(int i,int val) {
-  pixels[i] = makeRGBVal(ADJUST_BRIGHTNESS((val>>16)&255), ADJUST_BRIGHTNESS((val>>8)&255), ADJUST_BRIGHTNESS((val)&255));
+  if(i < PIXEL_COUNT) {
+    pixels[i] = makeRGBVal(ADJUST_BRIGHTNESS((val>>16)&255), ADJUST_BRIGHTNESS((val>>8)&255), ADJUST_BRIGHTNESS((val)&255));
+  }
 }
 
 int getButton() {
-
   return gpio_get_level(BUTTON_1_PIN) == 0;
 }
 
@@ -48,14 +48,24 @@ void setup() {
   Serial.begin(115200);
 
   gpio_set_direction(BUTTON_1_PIN, GPIO_MODE_INPUT);
-  gpio_set_direction(PIXEL_PIN, GPIO_MODE_OUTPUT);
 
   netInit();
+  pixels = ws2812_init();
   for(int i=0; i < PIXEL_COUNT; i++) {
     pixels[i] = makeRGBVal(0, 0, 0);
   }
-  ws2812_init(PIXEL_PIN);
-  ws2812_setColors(PIXEL_COUNT, pixels);
+
+  /*
+  pixels[7] = makeRGBVal(16, 0, 0);
+  pixels[8] = makeRGBVal(0, 16, 0);
+  pixels[9] = makeRGBVal(0, 0, 16);
+  pixels[10] = makeRGBVal(16, 0, 16);
+  pixels[11] = makeRGBVal(0, 16, 16);
+  pixels[12] = makeRGBVal(16, 16, 0);
+  pixels[13] = makeRGBVal(16, 16, 16);
+  */
+
+  ws2812_show();
 
   simunetinit();
   loaderInit((char*)dumpbc);
@@ -73,7 +83,7 @@ void loop() {
 	VDROP();
 
   // update the LEDs
-  ws2812_setColors(PIXEL_COUNT, pixels);
+  ws2812_show();
 
   esp_task_wdt_reset();
 }
