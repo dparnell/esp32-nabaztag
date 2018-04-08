@@ -45,10 +45,17 @@ static void _network_event_task(void * arg){
             } else {
               wifi_status = 0; // RT2501_S_BROKEN
             }
+
+            esp_wifi_connect();
+          } else if(event->event_id == SYSTEM_EVENT_AP_START) {
+            wifi_status = 5; // RT2501_S_MASTER
+          } else if(event->event_id == SYSTEM_EVENT_AP_STOP) {
+            wifi_status = 1; // RT2501_S_IDLE
           } else if(event->event_id == SYSTEM_EVENT_STA_START) {
-              wifi_status = 1; // RT2501_S_IDLE
+            esp_wifi_connect();
+            wifi_status = 1; // RT2501_S_IDLE
           } else if(event->event_id == SYSTEM_EVENT_STA_STOP) {
-              wifi_status = 1; // RT2501_S_IDLE
+            wifi_status = 1; // RT2501_S_IDLE
           } else if(event->event_id == SYSTEM_EVENT_STA_CONNECTED) {
             wifi_status = 3; // RT2501_S_CONNECTING
           } else if(event->event_id == SYSTEM_EVENT_STA_GOT_IP) {

@@ -1,4 +1,5 @@
-/* 
+
+/*
  * Arduino-style shim code for ESP32 native builds
  *
  * Allows Arduino-ESP32 code to build via ESP-IDF with minimal changes
@@ -6,7 +7,7 @@
  * Copyright (c) 2017 Martin F. Falatic
  *
  */
-/* 
+/*
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
@@ -90,7 +91,7 @@
         retBuf[NumBits] = 0;
         return &retBuf[lastOne];
       }
-      
+
       inline void begin(uint32_t baud_rate)
       {
         delay(500);
@@ -162,7 +163,13 @@
 
   extern "C" int app_main(void)
   {
-    nvs_flash_init();
+    //Initialize NVS
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES) {
+      ESP_ERROR_CHECK(nvs_flash_erase());
+      ret = nvs_flash_init();
+    }
+
     xTaskCreate(task_main, "task_main", 1024*16, NULL, 10, NULL);
     return 0;
   }

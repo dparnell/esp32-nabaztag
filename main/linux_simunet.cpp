@@ -13,16 +13,16 @@
 #include <lwip/sockets.h>
 #include <lwip/netdb.h>
 
-#define TCPMAX 16 // nombre max de sockets tcp pouvant être ouvertes en même temps
-#define UDPMAX 16 // nombre max de sockets udp pouvant être ouvertes en même temps
+#define TCPMAX 128 // nombre max de sockets tcp pouvant être ouvertes en même temps
+#define UDPMAX 128 // nombre max de sockets udp pouvant être ouvertes en même temps
 
-int tcp_sock[TCPMAX];	// =-1 -> disponible
-int tcp_enable[TCPMAX];
-int tcp_listen[TCPMAX]; // si 1, la socket est en listen (et donc une action sur la socket est une connection)
-int tcp_writeEventToNotify[TCPMAX]; // si 1, on a envoyé un write event qui n'a pas encore été suivi d'un read ou write
+static int tcp_sock[TCPMAX];	// =-1 -> disponible
+static int tcp_enable[TCPMAX];
+static int tcp_listen[TCPMAX]; // si 1, la socket est en listen (et donc une action sur la socket est une connection)
+static int tcp_writeEventToNotify[TCPMAX]; // si 1, on a envoyé un write event qui n'a pas encore été suivi d'un read ou write
 
-int udp_sock[UDPMAX];
-int udp_port[UDPMAX]; // port=0 -> disponible
+static int udp_sock[UDPMAX];
+static int udp_port[UDPMAX]; // port=0 -> disponible
 
 // déclarations
 int inet_addr_bin(char *ip);
@@ -105,7 +105,7 @@ int checkTcpEvents(void)
 	FD_ZERO(&fdset_w);
 	FD_ZERO(&fdset_err);
 
-	for (i=0; i<TCPMAX; ++i)
+	for (i=0; i<TCPMAX; i++)
 		{
 			if (tcp_sock[i] != -1)
 				{
@@ -120,19 +120,20 @@ int checkTcpEvents(void)
 	int nbevts = select(maxval+1, &fdset_r, NULL /* &fdset_w */, &fdset_err, &timeout);
 	if (nbevts < 0)
 		{
-			my_printf(LOG_SIMUNET, "Sockets : Tcp select failed (%s)\n", strerror(errno));
+      int err = errno;
+			my_printf(LOG_SIMUNET, "Sockets : Tcp select failed %d (%s)\n", err, strerror(err));
 			return -1;
 		}
 
 	/*** write events ***/
-	for (i=0; i<TCPMAX; ++i)
+	for (i=0; i<TCPMAX; i++)
 		if (tcp_writeEventToNotify[i])
 			tcpEventWrite(tcp_sock[i]);
 
 	/*** read events ***/
 	if (nbevts > 0)
 		{
-			for (i=0; i<=maxval; ++i)
+			for (i=0; i<=maxval; i++)
 				{
 					if (FD_ISSET(i, &fdset_w))
 						{
@@ -145,6 +146,7 @@ int checkTcpEvents(void)
 					if (FD_ISSET(i, &fdset_err))
 						{
 							// TODO
+              my_printf(LOG_SIMUNET, "Sockets : TCP socket %d - %d has an error\n", i, tcp_sock[i]);
 						}
 				}
 		}
@@ -179,10 +181,10 @@ int tcpEventRead(int fd)
 			tcp_listen[idx] = 0;
 
 			sizecor=sizeof(cor);
-			ns=accept(fd, (struct sockaddr*)&cor, &sizecor);
+			ns = accept(fd, (struct sockaddr*)&cor, &sizecor);
 			if (ns==-1) return 1;
 
-			ni=tcpgetfree();
+			ni = tcpgetfree();
 			if (ni<0)
 				{
 					close(ns);
@@ -194,10 +196,10 @@ int tcpEventRead(int fd)
 
 			tcp_sock[ni]=ns;
 
-			my_printf(LOG_SIMUNET, "Sockets : accept Tcp from %x:%d (socket=%d)\n",ip,port,ns);
+			my_printf(LOG_SIMUNET, "Sockets : accept Tcp from %x:%d (ni=%d socket=%d)\n", ip, port, ni, ns);
 			VPUSH(INTTOVAL(ni));
 			VPUSH(INTTOVAL(2));
-			sprintf(buf,"%d",idx);
+			sprintf(buf, "%d", idx);
 			VPUSH(PNTTOVAL(VMALLOCSTR(buf,strlen(buf))));
 			VPUSH(VCALLSTACKGET(sys_start,SYS_CBTCP));
 			if (VSTACKGET(0)!=NIL) interpGo();
@@ -221,6 +223,7 @@ int tcpEventRead(int fd)
 		my_printf(LOG_SIMUNET, "Sockets : Read event on %d\n",fd);
 		res=recv(fd,buf,2048,0);
 
+    // my_printf(LOG_SIMUNET, "\t%s\n", buf);
 		// helper_write_buffer(buf, res);
 
 		VPUSH(INTTOVAL(idx));
@@ -250,6 +253,11 @@ int tcpEventRead(int fd)
 int tcpEventWrite(int fd)
 {
 	int idx = tcpbysock(fd);
+  // for some reason the LWIP stack is flagging the listening socket as having a write event
+  if(tcp_listen[idx]) {
+    return 1;
+  }
+
 	if (idx<0) {
 		my_printf(LOG_SIMUNET, "Sockets : idx < 0\n");
 		return 0;
@@ -257,11 +265,11 @@ int tcpEventWrite(int fd)
 
 	tcp_writeEventToNotify[idx] = 0;
 
-	my_printf(LOG_SIMUNET, "Sockets : Write event on %d\n",idx);
+	my_printf(LOG_SIMUNET, "Sockets : Write event on %d - %d\n", fd, idx);
 	VPUSH(INTTOVAL(idx));
 	VPUSH(INTTOVAL(0));
 	VPUSH(NIL);
-	VPUSH(VCALLSTACKGET(sys_start,SYS_CBTCP));
+	VPUSH(VCALLSTACKGET(sys_start, SYS_CBTCP));
 	if (VSTACKGET(0)!=NIL) interpGo();
 	else { VDROP();VDROP();VDROP();}
 	VDROP();
@@ -274,7 +282,7 @@ int tcpEventWrite(int fd)
 int tcpbysock(int s)
 {
 	int i;
-	for(i=0;i<TCPMAX;i++) if (tcp_sock[i]==s) return i;
+	for(i = 0; i < TCPMAX; i++) if (tcp_sock[i] == s) return i;
 	return -1;
 }
 
@@ -287,8 +295,8 @@ int tcpgetfree(void)
 	int i;
 	for(i=0;i<TCPMAX;i++) if (tcp_sock[i]==-1)
 	{
-		tcp_enable[i]=1;
-		tcp_listen[i]=0;
+		tcp_enable[i] = 1;
+		tcp_listen[i] = 0;
 		return i;
 	}
 	return -1;
@@ -320,7 +328,8 @@ int tcpopen(char* dstip, int dstport)
 	if (connect(socktcp,(struct sockaddr *)&ina,sizeof(ina))!=0)
 		// ici dans le code windows il y a une condition si SOCKETWOULDBLOCK
 	{
-		my_printf(LOG_SIMUNET, "Sockets : Tcp connect failed (%s)\n", strerror(errno));
+    int err = errno;
+		my_printf(LOG_SIMUNET, "Sockets : Tcp connect failed %d (%s)\n", strerror(err));
 		close(socktcp);
 		return -1;
 	}
@@ -366,20 +375,20 @@ void tcpenable(int i,int enable)
 /**
 	 Envoie des données sur une connection tcp déjà ouverte
  */
-int tcpsend(int i,char* msg, int len)
+int tcpsend(int i, char* msg, int len)
 {
 	if ((i>=0)&&(i<TCPMAX)&&(tcp_sock[i]!=-1))
 	{
-		int res=send(tcp_sock[i],msg,len,0);
-		if (res<0)
-		{
-			my_printf(LOG_SIMUNET, "Sockets: Tcp could not send data (%s)\n", strerror(errno));
-			// ici dans le code windows il y a une condition si SOCKETWOULDBLOCK
-			res=-1;
-		}
-		return res;
-	}
-
+    int res = send(tcp_sock[i], msg, len, 0);
+    if (res<0) {
+          int err = errno;
+          my_printf(LOG_SIMUNET, "Sockets: Tcp could not send data on socket %d, %d -  %d (%s)\n", i, tcp_sock[i], err, strerror(err));
+          // my_printf(LOG_SIMUNET, "%s\n", msg);
+          // ici dans le code windows il y a une condition si SOCKETWOULDBLOCK
+          res=-1;
+    } else
+      return res;
+  }
 	return -1;
 }
 
@@ -406,19 +415,23 @@ int tcpservercreate(int port)
 
 	if (bind(socksrv,(struct sockaddr*)&ina,sizeof(ina))!=0)
 	{
-		my_printf(LOG_SIMUNET, "Sockets : Tcp port %d busy (%s)\n",port, strerror(errno));
+    int err = errno;
+		my_printf(LOG_SIMUNET, "Sockets : Tcp port %d busy %d (%s)\n", port, err, strerror(err));
 		close(socksrv);
 		return -1;
 	}
 	if (listen(socksrv,3)!=0)
 	{
-		my_printf(LOG_SIMUNET, "Sockets : Tcp port %d listen error (%s)\n",port, strerror(errno));
+    int err = errno;
+		my_printf(LOG_SIMUNET, "Sockets : Tcp port %d listen error %d (%s)\n", port, err, strerror(err));
 		close(socksrv);
 		return -1;
 	}
-	my_printf(LOG_SIMUNET, "Sockets : create Tcp server :%d (socket=%d) (%s)\n",port,socksrv, strerror(errno));
+
+	my_printf(LOG_SIMUNET, "Sockets : create Tcp server :%d (socket=%d) (%s)\n", port, socksrv, strerror(errno));
 	tcp_sock[i]=socksrv;
 	tcp_listen[i]=1;
+  tcp_writeEventToNotify[i] = 0;
 
 	return 0;
 }

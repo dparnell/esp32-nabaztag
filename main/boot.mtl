@@ -323,6 +323,7 @@ fun netudp t src ip=
 var ltcp;;
 
 fun writetcp t msg i=
+//  Secho "writetcp: "; Iecho t; Secholn msg;
 	tcpSend t msg i nil;;
 
 fun remtcp l t= if l!=nil then let hd l->[tt _] in if t==tt then tl l
@@ -357,6 +358,8 @@ fun enabletcp t v=
 	tcpEnable t v;;
 
 fun nettcp t val msg=
+  Secho "nettcp "; Iecho t; Secho " "; Iecholn val;
+
 	if val==TCPSTART then
 		let listswitch ltcp atoi msg -> cb in
 		(
@@ -520,7 +523,7 @@ fun findsize s=
 		let i+strlen http_content_start -> i in atoi strsub header i if j!=nil then j-i;;
 
 fun tcpwrite cnx sock=
-Secholn "tcpwrite";
+Secho "tcpwrite "; Iecholn cnx;
 	if sock.sockOutput!=nil then
 	(
 		if sock.sockIndex==nil then set sock.sockIndex=0;
@@ -578,6 +581,7 @@ fun cbsrv cnx code msg cbrequest=
 	Secholn "httpsrv accept";
 	let [sockCnx:cnx sockCallback:cbrequest]-> sock in
 	(
+    Secho "accepted sock: " ; Iecholn cnx;
 		tcpcb cnx fixarg4 #tcpevent sock;
 		0
 	);;
@@ -1422,12 +1426,11 @@ fun cuturl url =
 		let if i==nil then "/" else strsub url i strlen url -> path in
 		[host port path];;
 
-fun tcpevent t val msg sock=
+fun tcpevent2 t val msg sock=
 	if val==TCPWRITE then tcpwrite t sock
 	else if val==TCPCLOSE then tcpread t nil sock
 	else tcpread t msg sock;
 	0;;
-
 
 fun httpsendreq ip x=
 	Secho "found ip>>>>>>>>>>>>>>>>>>>>>>>>>"; Secholn ip;
@@ -1435,7 +1438,7 @@ fun httpsendreq ip x=
 	if ip==nil then (call httpreq.cbH [httpreq nil]; nil)
 	else
 	(
-		set httpreq.cnxH=opentcp netip nil useparamip ip port fixarg4 #tcpevent httpreq;
+		set httpreq.cnxH=opentcp netip nil useparamip ip port fixarg4 #tcpevent2 httpreq;
 		set httpreq.stateH=HTTP_REACH;
 		nil
 	);
