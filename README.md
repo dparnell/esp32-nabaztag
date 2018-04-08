@@ -1,5 +1,4 @@
-# Hello World Example
+# ESP32 Nabaztag firmware
 
-Starts a FreeRTOS task to print "Hello World"
-
-See the README.md file in the upper level 'examples' directory for more information about examples.
+This project contains the source to a version of the Nabaztag firmware customised to run on an ESP32.
+It will require a ESP32 with external SPI RAM to run such as a ESP32 Wrover module. I am currently developing on a TTGO T9 board.
