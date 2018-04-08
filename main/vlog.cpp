@@ -64,18 +64,19 @@ void logGC()
 
 int sysLoad(char *dst,int i,int ldst,char *filename,int j,int len)
 {
-#if 0
+  char buf[128];
+  sprintf(buf, "/sdcard/%s", filename);
+
 	FILE *f;
 	if ((j<0)||(i<0)||(len<=0)) return 0;
 	if (i+len>ldst) len=ldst-i;
 	if (len<=0) return 0;
-	f=fopen(filename,"rb");
+	f=fopen(buf,"rb");
 	if (!f) return 0;
 	fseek(f,j,SEEK_SET);
 	len=fread(dst,1,len,f);
 	fclose(f);
 	return len;
-#endif
 
   return 0;
 }
@@ -83,21 +84,20 @@ int sysLoad(char *dst,int i,int ldst,char *filename,int j,int len)
 // pour le firmware, le "fichier" ouvert est toujours l'eeprom
 int sysSave(char *dst,int i,int ldst,char *filename,int j,int len)
 {
-#if 0
+  char buf[128];
+  sprintf(buf, "/sdcard/%s", filename);
+
 	FILE *f;
 	if ((j<0)||(i<0)||(len<=0)) return 0;
 	if (i+len>ldst) len=ldst-i;
 	if (len<=0) return 0;
-	f=fopen(filename,"rb+");
-	if (!f) f=fopen(filename,"wb+");
+	f=fopen(buf,"rb+");
+	if (!f) f=fopen(buf,"wb+");
 	if (!f) return 0;
 	fseek(f,j,SEEK_SET);
 	len=fwrite(dst,1,len,f);
 	fclose(f);
 	return len;
-#endif
-
-  return 0;
 }
 
 static char firstTimeSet = 0;

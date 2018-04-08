@@ -11,6 +11,7 @@
 
 #include "esp_wifi.h"
 #include <esp_event_loop.h>
+#include "esp_task_wdt.h"
 
 static int wifi_initialized = 0;
 static int wifi_status = 1;  // RT2501_S_IDLE
@@ -30,7 +31,7 @@ static void _network_event_task(void * arg){
     for (;;) {
         if(xQueueReceive(_network_event_queue, &event, portMAX_DELAY) == pdTRUE) {
           if(event->event_id == SYSTEM_EVENT_SCAN_DONE) {
-            // WiFiScanClass::_scanDone();
+            wifi_status = 1; // RT2501_S_IDLE
           } else if(event->event_id == SYSTEM_EVENT_STA_DISCONNECTED) {
             uint8_t reason = event->event_info.disconnected.reason;
             // log_w("Reason: %u - %s", reason, reason2str(reason));
@@ -181,9 +182,9 @@ void netSetmode(int mode, char* ssid, int _chn)
   wifi_initialized = 1;
   printf("netSetMode: %d - %s\n", mode, ssid);
 
-    wifi_init_config_t wifiInitializationConfig = WIFI_INIT_CONFIG_DEFAULT();
-    esp_wifi_init(&wifiInitializationConfig);
-    esp_wifi_set_storage(WIFI_STORAGE_RAM);
+  wifi_init_config_t wifiInitializationConfig = WIFI_INIT_CONFIG_DEFAULT();
+  esp_wifi_init(&wifiInitializationConfig);
+  esp_wifi_set_storage(WIFI_STORAGE_RAM);
 
   if(mode == 1) {
     // set access point mode
@@ -210,29 +211,76 @@ void netSetmode(int mode, char* ssid, int _chn)
   } else {
     // set station mode
     ESP_ERROR_CHECK(tcpip_adapter_dhcps_stop(TCPIP_ADAPTER_IF_AP));
-    // WiFi.mode(WIFI_STA);
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
   }
 
-    ESP_ERROR_CHECK(esp_wifi_start());
+  ESP_ERROR_CHECK(esp_wifi_start());
 }
 
 void netScan(char* ssid)
 {
-  int nscan = 0 ; // WiFi.scanNetworks();
-  for(int i = 0; i < nscan; i++) {
-    /*
-    const char* ssid = WiFi.SSID(i).c_str();
-    uint8_t* bssid = WiFi.BSSID(i);
+  wifi_init_config_t wifiInitializationConfig = WIFI_INIT_CONFIG_DEFAULT();
+  esp_wifi_init(&wifiInitializationConfig);
+  esp_wifi_set_storage(WIFI_STORAGE_RAM);
 
-    VPUSH(PNTTOVAL(VMALLOCSTR((char*)ssid, strlen(ssid))));
-    VPUSH(PNTTOVAL(VMALLOCSTR((char*)bssid,6)));
-    VPUSH(PNTTOVAL(VMALLOCSTR((char*)bssid,6)));
-    VPUSH(INTTOVAL(WiFi.RSSI(i)));
-    VPUSH(INTTOVAL(WiFi.channel(i)));
+  ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+  ESP_ERROR_CHECK(esp_wifi_start());
+
+  wifi_scan_config_t config;
+  config.ssid = 0;
+  config.bssid = 0;
+  config.channel = 0;
+  config.show_hidden = false;
+  config.scan_type = WIFI_SCAN_TYPE_ACTIVE;
+  config.scan_time.active.min = 100;
+  config.scan_time.active.max = 300;
+  wifi_status = 2; // RT2501_S_SCAN
+  ESP_ERROR_CHECK(esp_wifi_scan_start(&config, false));
+
+  printf("Initiating wifi scan - %d", wifi_status);
+  while(wifi_status == 2) {
+    vTaskDelay(100 / portTICK_PERIOD_MS);
+    printf(".");
+    esp_task_wdt_reset();
+  }
+  printf("\n");
+
+  uint16_t nscan = 10;
+  wifi_ap_record_t records[10];
+
+  esp_wifi_scan_get_ap_num(&nscan);
+  if(nscan > 10) {
+    nscan = 10;
+  }
+
+  esp_wifi_scan_get_ap_records(&nscan, records);
+
+  for(int i = 0; i < nscan; i++) {
+    int enc_type;
+    switch(records[i].authmode) {
+    case WIFI_AUTH_OPEN:
+      enc_type = 0; // none
+      break;
+    case WIFI_AUTH_WEP:
+      enc_type = 2; // WEP128
+      break;
+    case WIFI_AUTH_WPA_PSK:
+    case WIFI_AUTH_WPA2_PSK:
+    case WIFI_AUTH_WPA_WPA2_PSK:
+    case WIFI_AUTH_WPA2_ENTERPRISE:
+      enc_type = 3; // WPA
+      break;
+    default:
+      enc_type = 4; // unsupported
+    }
+
+    VPUSH(PNTTOVAL(VMALLOCSTR((char*)records[i].bssid,6)));
+    VPUSH(PNTTOVAL(VMALLOCSTR((char*)records[i].bssid,6)));
+    VPUSH(INTTOVAL(records[i].rssi));
+    VPUSH(INTTOVAL(records[i].primary));
     VPUSH(INTTOVAL(1)); // rateset
-    VPUSH(INTTOVAL(WiFi.encryptionType(i)));
+    VPUSH(INTTOVAL(enc_type));
     VMKTAB(7);
-    */
   }
   VPUSH(NIL);
   while(nscan--) VMKTAB(2);
@@ -240,7 +288,14 @@ void netScan(char* ssid)
 
 void netAuth(char* ssid, char* mac, char* bssid, int chn, int rate, int authmode, int encrypt, char* key)
 {
-  // WiFi.begin(ssid, key);
+  wifi_config_t wifi_config;
+
+  strncpy((char*)wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid));
+  strncpy((char*)wifi_config.sta.password, key, sizeof(wifi_config.sta.password));
+
+  ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
+  ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config) );
+  ESP_ERROR_CHECK(esp_wifi_start() );
 }
 
 void netSeqAdd(unsigned char* seq,int n)

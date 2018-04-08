@@ -4,6 +4,8 @@
 #ifndef _MEMORY_
 #define _MEMORY_
 
+#include "esp_task_wdt.h"
+
 // #define VSIMU /// d�fini dans le Makefile : -DVSIMU
 //#define VREAL
 #define USE_SPI_SRAM
@@ -19,7 +21,7 @@ extern int vmem_heap[VMEM_LENGTH];
 
 #define ENDLINE "\n"
 #define uchar unsigned char
-#define CLR_WDT
+#define CLR_WDT esp_task_wdt_reset()
 
 void dump(unsigned char *src,int len);
 

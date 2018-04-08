@@ -117,7 +117,7 @@ void interpGo()
 				//				if (bytecode[0x2450]==0) tron=0;
 				//                          dump(&bytecode[0x2440],32);
 			}
-                        CLR_WDT;
+      CLR_WDT;
 			switch(op)
 			{
 			case OPexec:
