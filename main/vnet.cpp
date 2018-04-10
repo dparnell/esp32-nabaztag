@@ -21,85 +21,52 @@ static int wifi_initialized = 0;
 static int wifi_status = 1;  // RT2501_S_IDLE
 static wifi_interface_t wifi_interface = ESP_IF_WIFI_STA;
 
-#if CONFIG_FREERTOS_UNICORE
-#define NET_RUNNING_CORE 0
-#else
-#define NET_RUNNING_CORE 1
-#endif
 
-
-static xQueueHandle _network_event_queue;
-static TaskHandle_t _network_event_task_handle = NULL;
-
-static void _network_event_task(void * arg){
-  system_event_t *event = NULL;
-  for (;;) {
-    if(xQueueReceive(_network_event_queue, &event, portMAX_DELAY) == pdTRUE) {
-      if(event->event_id == SYSTEM_EVENT_SCAN_DONE) {
-        wifi_status = 1; // RT2501_S_IDLE
-      } else if(event->event_id == SYSTEM_EVENT_STA_DISCONNECTED) {
-        uint8_t reason = event->event_info.disconnected.reason;
-        // log_w("Reason: %u - %s", reason, reason2str(reason));
-        if(reason == WIFI_REASON_NO_AP_FOUND) {
-          wifi_status = 0; // RT2501_S_BROKEN
-        } else if(reason == WIFI_REASON_AUTH_FAIL || reason == WIFI_REASON_ASSOC_FAIL) {
-          wifi_status = 0; // RT2501_S_BROKEN
-        } else if(reason == WIFI_REASON_BEACON_TIMEOUT || reason == WIFI_REASON_HANDSHAKE_TIMEOUT) {
-          wifi_status = 3; // RT2501_S_CONNECTING
-        } else if(reason == WIFI_REASON_AUTH_EXPIRE) {
-          wifi_status = 3; // RT2501_S_CONNECTING
-        } else {
-          wifi_status = 0; // RT2501_S_BROKEN
-        }
-
-        esp_wifi_connect();
-      } else if(event->event_id == SYSTEM_EVENT_AP_START) {
-        wifi_status = 5; // RT2501_S_MASTER
-      } else if(event->event_id == SYSTEM_EVENT_AP_STOP) {
-        wifi_status = 1; // RT2501_S_IDLE
-      } else if(event->event_id == SYSTEM_EVENT_STA_START) {
-        esp_wifi_connect();
-        wifi_status = 1; // RT2501_S_IDLE
-      } else if(event->event_id == SYSTEM_EVENT_STA_STOP) {
-        wifi_status = 1; // RT2501_S_IDLE
-      } else if(event->event_id == SYSTEM_EVENT_STA_CONNECTED) {
-        wifi_status = 3; // RT2501_S_CONNECTING
-      } else if(event->event_id == SYSTEM_EVENT_STA_GOT_IP) {
-        wifi_status = 4; // RT2501_S_CONNECTED
-      }
-      // WiFiGenericClass::_eventCallback(arg, event);
-    }
-  }
-  vTaskDelete(NULL);
-  _network_event_task_handle = NULL;
-}
+const char * system_event_reasons[] = { "UNSPECIFIED", "AUTH_EXPIRE", "AUTH_LEAVE", "ASSOC_EXPIRE", "ASSOC_TOOMANY", "NOT_AUTHED", "NOT_ASSOCED", "ASSOC_LEAVE", "ASSOC_NOT_AUTHED", "DISASSOC_PWRCAP_BAD", "DISASSOC_SUPCHAN_BAD", "IE_INVALID", "MIC_FAILURE", "4WAY_HANDSHAKE_TIMEOUT", "GROUP_KEY_UPDATE_TIMEOUT", "IE_IN_4WAY_DIFFERS", "GROUP_CIPHER_INVALID", "PAIRWISE_CIPHER_INVALID", "AKMP_INVALID", "UNSUPP_RSN_IE_VERSION", "INVALID_RSN_IE_CAP", "802_1X_AUTH_FAILED", "CIPHER_SUITE_REJECTED", "BEACON_TIMEOUT", "NO_AP_FOUND", "AUTH_FAIL", "ASSOC_FAIL", "HANDSHAKE_TIMEOUT" };
+#define reason2str(r) ((r>176)?system_event_reasons[r-177]:system_event_reasons[r-1])
 
 static esp_err_t _network_event_cb(void *arg, system_event_t *event){
-  if (xQueueSend(_network_event_queue, &event, portMAX_DELAY) != pdPASS) {
-    printf("Network Event Queue Send Failed!\n");
-    return ESP_FAIL;
+  if(event->event_id == SYSTEM_EVENT_SCAN_DONE) {
+    printf("***SYSTEM_EVENT_SCAN_DONE\n");
+    wifi_status = 1; // RT2501_S_IDLE
+  } else if(event->event_id == SYSTEM_EVENT_STA_DISCONNECTED) {
+    uint8_t reason = event->event_info.disconnected.reason;
+    printf("***SYSTEM_EVENT_STA_DISCONNECTED: Reason: %u - %s\n", reason, reason2str(reason));
+    if(reason == WIFI_REASON_NO_AP_FOUND) {
+      wifi_status = 0; // RT2501_S_BROKEN
+    } else if(reason == WIFI_REASON_AUTH_FAIL || reason == WIFI_REASON_ASSOC_FAIL) {
+      wifi_status = 0; // RT2501_S_BROKEN
+    } else if(reason == WIFI_REASON_BEACON_TIMEOUT || reason == WIFI_REASON_HANDSHAKE_TIMEOUT) {
+      wifi_status = 3; // RT2501_S_CONNECTING
+    } else if(reason == WIFI_REASON_AUTH_EXPIRE) {
+      wifi_status = 3; // RT2501_S_CONNECTING
+    } else {
+      wifi_status = 0; // RT2501_S_BROKEN
+    }
+
+    esp_wifi_connect();
+  } else if(event->event_id == SYSTEM_EVENT_AP_START) {
+    printf("***SYSTEM_EVENT_AP_START\n");
+    wifi_status = 5; // RT2501_S_MASTER
+  } else if(event->event_id == SYSTEM_EVENT_AP_STOP) {
+    printf("***SYSTEM_EVENT_AP_STOP\n");
+    wifi_status = 1; // RT2501_S_IDLE
+  } else if(event->event_id == SYSTEM_EVENT_STA_START) {
+    printf("***SYSTEM_EVENT_STA_START\n");
+    esp_wifi_connect();
+    wifi_status = 3; // RT2501_S_IDLE
+  } else if(event->event_id == SYSTEM_EVENT_STA_STOP) {
+    printf("***SYSTEM_EVENT_STA_STOP\n");
+    wifi_status = 1; // RT2501_S_IDLE
+  } else if(event->event_id == SYSTEM_EVENT_STA_CONNECTED) {
+    printf("***SYSTEM_EVENT_STA_CONNECTED\n");
+    wifi_status = 4; // RT2501_S_CONNECTING
+  } else if(event->event_id == SYSTEM_EVENT_STA_GOT_IP) {
+    printf("***SYSTEM_EVENT_STA_GOT_IP\n");
+    wifi_status = 4; // RT2501_S_CONNECTED
   }
   return ESP_OK;
 }
-
-static void _start_network_event_task(){
-  if(!_network_event_queue){
-    _network_event_queue = xQueueCreate(32, sizeof(system_event_t *));
-    if(!_network_event_queue){
-      printf("Network Event Queue Create Failed!\n");
-      return;
-    }
-  }
-  if(!_network_event_task_handle){
-    xTaskCreatePinnedToCore(_network_event_task, "network_event", 4096, NULL, 2, &_network_event_task_handle, NET_RUNNING_CORE);
-    if(!_network_event_task_handle){
-      printf("Network Event Task Start Failed!\n");
-      return;
-    }
-  }
-  esp_event_loop_init(&_network_event_cb, NULL);
-}
-
 
 esp_err_t wifi_rx_cb(void *buffer, uint16_t length, void *eb) {
   char dummy[6];
@@ -111,9 +78,12 @@ esp_err_t wifi_rx_cb(void *buffer, uint16_t length, void *eb) {
   }
 
   return ESP_OK;
- }
+}
 
 static esp_err_t ignore_event(system_event_t *event) {
+  printf("Ignoring event: %d\n", event->event_id);
+  // _network_event_cb(NULL, event);
+
   return ESP_OK;
 }
 
@@ -134,34 +104,31 @@ static esp_err_t wifi_ap_disconnect(system_event_t *event) {
 }
 
 void netInit() {
+  printf("Initializing WiFi network settings...\n");
   wifi_initialized = 0;
   wifi_status = 1; // IDLE
 
-  _start_network_event_task();
-  // tcpip_adapter_init();
+  esp_event_loop_init(&_network_event_cb, NULL);
+
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-  esp_err_t err = esp_wifi_init(&cfg);
-  if(err){
-    printf("esp_wifi_init %d", err);
-  } else {
+  ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
-    //Register event handlers
-    default_event_handlers[SYSTEM_EVENT_STA_START] = ignore_event;
-    default_event_handlers[SYSTEM_EVENT_STA_STOP] = ignore_event;
-    default_event_handlers[SYSTEM_EVENT_STA_CONNECTED] = wifi_station_connect;
-    default_event_handlers[SYSTEM_EVENT_STA_DISCONNECTED] = wifi_station_disconnect;
-    default_event_handlers[SYSTEM_EVENT_STA_GOT_IP] = ignore_event;
-    default_event_handlers[SYSTEM_EVENT_STA_LOST_IP] = ignore_event;
-    default_event_handlers[SYSTEM_EVENT_AP_START] = wifi_ap_connect;
-    default_event_handlers[SYSTEM_EVENT_AP_STOP] = wifi_ap_disconnect;
+  //Register event handlers
+  default_event_handlers[SYSTEM_EVENT_STA_START] = ignore_event;
+  default_event_handlers[SYSTEM_EVENT_STA_STOP] = ignore_event;
+  default_event_handlers[SYSTEM_EVENT_STA_CONNECTED] = wifi_station_connect;
+  default_event_handlers[SYSTEM_EVENT_STA_DISCONNECTED] = wifi_station_disconnect;
+  default_event_handlers[SYSTEM_EVENT_STA_GOT_IP] = ignore_event;
+  default_event_handlers[SYSTEM_EVENT_STA_LOST_IP] = ignore_event;
+  default_event_handlers[SYSTEM_EVENT_AP_START] = wifi_ap_connect;
+  default_event_handlers[SYSTEM_EVENT_AP_STOP] = wifi_ap_disconnect;
 
-    //Register shutdown handler
-    esp_register_shutdown_handler((shutdown_handler_t) esp_wifi_stop);
+  //Register shutdown handler
+  ESP_ERROR_CHECK(esp_register_shutdown_handler((shutdown_handler_t) esp_wifi_stop));
 
+  ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
+  ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_NULL));
 
-    esp_wifi_set_storage(WIFI_STORAGE_RAM);
-    esp_wifi_set_mode(WIFI_MODE_NULL);
-  }
 }
 
 int netState()
@@ -230,22 +197,27 @@ int netChk(char* src, int indexsrc, int lentosend, int lensrc, unsigned int val)
   return val;
 }
 
+static wifi_config_t wifi_config;
+
 void netSetmode(int mode, char* ssid, int _chn)
 {
   wifi_initialized = 1;
-  printf("netSetMode: %d - %s\n", mode, ssid);
+  // stop any existing WiFi connection
+  ESP_ERROR_CHECK(esp_wifi_stop());
 
   wifi_init_config_t wifiInitializationConfig = WIFI_INIT_CONFIG_DEFAULT();
-  esp_wifi_init(&wifiInitializationConfig);
-  esp_wifi_set_storage(WIFI_STORAGE_RAM);
+  ESP_ERROR_CHECK(esp_wifi_init(&wifiInitializationConfig));
+  ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
 
   if(mode == 1) {
+    printf("netSetMode: %d - %s\n", mode, ssid);
     // set access point mode
     wifi_interface = ESP_IF_WIFI_AP;
 
     wifi_config_t ap_config;
 
     strcpy((char*)&ap_config.ap.ssid[0], ssid);
+    ap_config.ap.ssid_len = strlen(ssid);
     ap_config.ap.channel = 0;
     ap_config.ap.authmode = WIFI_AUTH_OPEN;
     ap_config.ap.ssid_hidden = 0;
@@ -254,14 +226,24 @@ void netSetmode(int mode, char* ssid, int _chn)
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config));
+    ESP_ERROR_CHECK(esp_wifi_start());
   } else {
+    printf("netSetMode: %d\n", mode);
     // set station mode
     wifi_interface = ESP_IF_WIFI_STA;
+
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
+    ESP_ERROR_CHECK(esp_wifi_start());
+    ESP_ERROR_CHECK(esp_wifi_connect());
+
+    wifi_status = 3;
   }
 
-  ESP_ERROR_CHECK(esp_wifi_start());
 }
+
+static uint16_t nscan = 10;
+static wifi_ap_record_t records[10];
 
 void netScan(char* ssid)
 {
@@ -290,9 +272,6 @@ void netScan(char* ssid)
     esp_task_wdt_reset();
   }
   printf("\n");
-
-  uint16_t nscan = 10;
-  wifi_ap_record_t records[10];
 
   esp_wifi_scan_get_ap_num(&nscan);
   if(nscan > 10) {
@@ -339,14 +318,11 @@ void netScan(char* ssid)
 
 void netAuth(char* ssid, char* mac, char* bssid, int chn, int rate, int authmode, int encrypt, char* key)
 {
-  wifi_config_t wifi_config;
+  printf("netAuth: %s - %d %d\n", ssid, authmode, encrypt);
+  memset(&wifi_config, 0, sizeof(wifi_config));
 
   strncpy((char*)wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid));
   strncpy((char*)wifi_config.sta.password, key, sizeof(wifi_config.sta.password));
-
-  ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
-  ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config) );
-  ESP_ERROR_CHECK(esp_wifi_start() );
 }
 
 void netSeqAdd(unsigned char* seq,int n)
