@@ -18,7 +18,6 @@
 #include "vinterp.h"
 #include "properties.h"
 #include "log.h"
-#include "linux_simunet.h"
 #include "vnet.h"
 
 extern "C" {
@@ -132,7 +131,6 @@ void setup() {
 
   setupFilesystem();
 
-  simunetinit();
   loaderInit((char*)dumpbc);
 
   VPUSH(INTTOVAL(0));
@@ -141,7 +139,6 @@ void setup() {
 }
 
 void loop() {
-  checkNetworkEvents();
 
 	VPUSH(VCALLSTACKGET(sys_start, SYS_CBLOOP));
 	if (VSTACKGET(0)!=NIL) interpGo();

@@ -13,6 +13,9 @@
 #include <esp_event_loop.h>
 #include "esp_task_wdt.h"
 
+
+extern "C" system_event_handler_t default_event_handlers[SYSTEM_EVENT_MAX];
+
 static int wifi_initialized = 0;
 static int wifi_status = 1;  // RT2501_S_IDLE
 
@@ -27,72 +30,72 @@ static xQueueHandle _network_event_queue;
 static TaskHandle_t _network_event_task_handle = NULL;
 
 static void _network_event_task(void * arg){
-    system_event_t *event = NULL;
-    for (;;) {
-        if(xQueueReceive(_network_event_queue, &event, portMAX_DELAY) == pdTRUE) {
-          if(event->event_id == SYSTEM_EVENT_SCAN_DONE) {
-            wifi_status = 1; // RT2501_S_IDLE
-          } else if(event->event_id == SYSTEM_EVENT_STA_DISCONNECTED) {
-            uint8_t reason = event->event_info.disconnected.reason;
-            // log_w("Reason: %u - %s", reason, reason2str(reason));
-            if(reason == WIFI_REASON_NO_AP_FOUND) {
-              wifi_status = 0; // RT2501_S_BROKEN
-            } else if(reason == WIFI_REASON_AUTH_FAIL || reason == WIFI_REASON_ASSOC_FAIL) {
-              wifi_status = 0; // RT2501_S_BROKEN
-            } else if(reason == WIFI_REASON_BEACON_TIMEOUT || reason == WIFI_REASON_HANDSHAKE_TIMEOUT) {
-              wifi_status = 3; // RT2501_S_CONNECTING
-            } else if(reason == WIFI_REASON_AUTH_EXPIRE) {
-              wifi_status = 3; // RT2501_S_CONNECTING
-            } else {
-              wifi_status = 0; // RT2501_S_BROKEN
-            }
-
-            esp_wifi_connect();
-          } else if(event->event_id == SYSTEM_EVENT_AP_START) {
-            wifi_status = 5; // RT2501_S_MASTER
-          } else if(event->event_id == SYSTEM_EVENT_AP_STOP) {
-            wifi_status = 1; // RT2501_S_IDLE
-          } else if(event->event_id == SYSTEM_EVENT_STA_START) {
-            esp_wifi_connect();
-            wifi_status = 1; // RT2501_S_IDLE
-          } else if(event->event_id == SYSTEM_EVENT_STA_STOP) {
-            wifi_status = 1; // RT2501_S_IDLE
-          } else if(event->event_id == SYSTEM_EVENT_STA_CONNECTED) {
-            wifi_status = 3; // RT2501_S_CONNECTING
-          } else if(event->event_id == SYSTEM_EVENT_STA_GOT_IP) {
-            wifi_status = 4; // RT2501_S_CONNECTED
-          }
-            // WiFiGenericClass::_eventCallback(arg, event);
+  system_event_t *event = NULL;
+  for (;;) {
+    if(xQueueReceive(_network_event_queue, &event, portMAX_DELAY) == pdTRUE) {
+      if(event->event_id == SYSTEM_EVENT_SCAN_DONE) {
+        wifi_status = 1; // RT2501_S_IDLE
+      } else if(event->event_id == SYSTEM_EVENT_STA_DISCONNECTED) {
+        uint8_t reason = event->event_info.disconnected.reason;
+        // log_w("Reason: %u - %s", reason, reason2str(reason));
+        if(reason == WIFI_REASON_NO_AP_FOUND) {
+          wifi_status = 0; // RT2501_S_BROKEN
+        } else if(reason == WIFI_REASON_AUTH_FAIL || reason == WIFI_REASON_ASSOC_FAIL) {
+          wifi_status = 0; // RT2501_S_BROKEN
+        } else if(reason == WIFI_REASON_BEACON_TIMEOUT || reason == WIFI_REASON_HANDSHAKE_TIMEOUT) {
+          wifi_status = 3; // RT2501_S_CONNECTING
+        } else if(reason == WIFI_REASON_AUTH_EXPIRE) {
+          wifi_status = 3; // RT2501_S_CONNECTING
+        } else {
+          wifi_status = 0; // RT2501_S_BROKEN
         }
+
+        esp_wifi_connect();
+      } else if(event->event_id == SYSTEM_EVENT_AP_START) {
+        wifi_status = 5; // RT2501_S_MASTER
+      } else if(event->event_id == SYSTEM_EVENT_AP_STOP) {
+        wifi_status = 1; // RT2501_S_IDLE
+      } else if(event->event_id == SYSTEM_EVENT_STA_START) {
+        esp_wifi_connect();
+        wifi_status = 1; // RT2501_S_IDLE
+      } else if(event->event_id == SYSTEM_EVENT_STA_STOP) {
+        wifi_status = 1; // RT2501_S_IDLE
+      } else if(event->event_id == SYSTEM_EVENT_STA_CONNECTED) {
+        wifi_status = 3; // RT2501_S_CONNECTING
+      } else if(event->event_id == SYSTEM_EVENT_STA_GOT_IP) {
+        wifi_status = 4; // RT2501_S_CONNECTED
+      }
+      // WiFiGenericClass::_eventCallback(arg, event);
     }
-    vTaskDelete(NULL);
-    _network_event_task_handle = NULL;
+  }
+  vTaskDelete(NULL);
+  _network_event_task_handle = NULL;
 }
 
 static esp_err_t _network_event_cb(void *arg, system_event_t *event){
-    if (xQueueSend(_network_event_queue, &event, portMAX_DELAY) != pdPASS) {
-        printf("Network Event Queue Send Failed!\n");
-        return ESP_FAIL;
-    }
-    return ESP_OK;
+  if (xQueueSend(_network_event_queue, &event, portMAX_DELAY) != pdPASS) {
+    printf("Network Event Queue Send Failed!\n");
+    return ESP_FAIL;
+  }
+  return ESP_OK;
 }
 
 static void _start_network_event_task(){
+  if(!_network_event_queue){
+    _network_event_queue = xQueueCreate(32, sizeof(system_event_t *));
     if(!_network_event_queue){
-        _network_event_queue = xQueueCreate(32, sizeof(system_event_t *));
-        if(!_network_event_queue){
-            printf("Network Event Queue Create Failed!\n");
-            return;
-        }
+      printf("Network Event Queue Create Failed!\n");
+      return;
     }
+  }
+  if(!_network_event_task_handle){
+    xTaskCreatePinnedToCore(_network_event_task, "network_event", 4096, NULL, 2, &_network_event_task_handle, NET_RUNNING_CORE);
     if(!_network_event_task_handle){
-        xTaskCreatePinnedToCore(_network_event_task, "network_event", 4096, NULL, 2, &_network_event_task_handle, NET_RUNNING_CORE);
-        if(!_network_event_task_handle){
-            printf("Network Event Task Start Failed!\n");
-            return;
-        }
+      printf("Network Event Task Start Failed!\n");
+      return;
     }
-    esp_event_loop_init(&_network_event_cb, NULL);
+  }
+  esp_event_loop_init(&_network_event_cb, NULL);
 }
 
 void netInit() {
@@ -100,12 +103,27 @@ void netInit() {
   wifi_status = 1; // IDLE
 
   _start_network_event_task();
-  tcpip_adapter_init();
+  // tcpip_adapter_init();
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
   esp_err_t err = esp_wifi_init(&cfg);
   if(err){
     printf("esp_wifi_init %d", err);
   } else {
+
+    //Register event handlers
+    default_event_handlers[SYSTEM_EVENT_STA_START] = NULL; //esp32WifiStaStartEvent;
+    default_event_handlers[SYSTEM_EVENT_STA_STOP] = NULL; //esp32WifiStaStopEvent;
+    default_event_handlers[SYSTEM_EVENT_STA_CONNECTED] = NULL; // esp32WifiStaConnectedEvent;
+    default_event_handlers[SYSTEM_EVENT_STA_DISCONNECTED] = NULL; // esp32WifiStaDisconnectedEvent;
+    default_event_handlers[SYSTEM_EVENT_STA_GOT_IP] = NULL; // esp32WifiStaGotIpEvent;
+    default_event_handlers[SYSTEM_EVENT_STA_LOST_IP] = NULL; // esp32WifiStaLostIpEvent;
+    default_event_handlers[SYSTEM_EVENT_AP_START] = NULL; // esp32WifiApStartEvent;
+    default_event_handlers[SYSTEM_EVENT_AP_STOP] = NULL; // esp32WifiApStopEvent;
+
+    //Register shutdown handler
+    esp_register_shutdown_handler((shutdown_handler_t) esp_wifi_stop);
+
+
     esp_wifi_set_storage(WIFI_STORAGE_RAM);
     esp_wifi_set_mode(WIFI_MODE_NULL);
   }
@@ -164,10 +182,10 @@ int netChk(char* src, int indexsrc, int lentosend, int lensrc, unsigned int val)
 
   val=((val << 8) & 0xff00) + ((val >> 8) & 0xff);
   while(lentosend > 1)
-  {
-	  val += *(p++);
-	  lentosend -= 2;
-  }
+    {
+      val += *(p++);
+      lentosend -= 2;
+    }
 
   if (lentosend) val += *(unsigned char*)p;
 
@@ -315,15 +333,15 @@ void netPmk(char* ssid, char* key, char* buf)
 {
   // NOT IMPLEMENTED
   //printf("xxxx netPmk %s %s\n",ssid,key);
-	//strcpy(buf,"01234567012345670123456701234567");
+  //strcpy(buf,"01234567012345670123456701234567");
 }
 
 int netRssi()
 {
-    wifi_ap_record_t info;
-    if(!esp_wifi_sta_get_ap_info(&info)) {
-        return info.rssi;
-    }
+  wifi_ap_record_t info;
+  if(!esp_wifi_sta_get_ap_info(&info)) {
+    return info.rssi;
+  }
 
-    return 0;
+  return 0;
 }

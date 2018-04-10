@@ -858,6 +858,7 @@ void interpGo()
 			case OPloopcb:
 				VCALLSTACKSET(sys_start,SYS_CBLOOP,VSTACKGET(0));
 				break;
+#ifdef USE_OS_IP_NETWORKING
 			case OPudpStart:
 				VSTACKSET(0,INTTOVAL(udpcreate(VALTOINT(VSTACKGET(0)))));
 				break;
@@ -939,6 +940,7 @@ void interpGo()
 					tcpenable(VALTOINT(VSTACKGET(0)),enable);
 				}
 				break;
+#endif
 			case OPSecholn:
 				logSecho(VSTACKGET(0),1);
 				//                          if (tron)dump(&bytecode[0x2440],32);
