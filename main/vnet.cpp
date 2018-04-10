@@ -10,6 +10,7 @@
 #include "vinterp.h"
 
 #include "esp_wifi.h"
+#include "esp_wifi_internal.h"
 #include <esp_event_loop.h>
 #include "esp_task_wdt.h"
 
@@ -18,6 +19,7 @@ extern "C" system_event_handler_t default_event_handlers[SYSTEM_EVENT_MAX];
 
 static int wifi_initialized = 0;
 static int wifi_status = 1;  // RT2501_S_IDLE
+static wifi_interface_t wifi_interface = ESP_IF_WIFI_STA;
 
 #if CONFIG_FREERTOS_UNICORE
 #define NET_RUNNING_CORE 0
@@ -98,6 +100,39 @@ static void _start_network_event_task(){
   esp_event_loop_init(&_network_event_cb, NULL);
 }
 
+
+esp_err_t wifi_rx_cb(void *buffer, uint16_t length, void *eb) {
+  char dummy[6];
+  memset(dummy, 0, sizeof(dummy));
+  netCb((char*)buffer, length, dummy);
+
+  if(eb != NULL) {
+    esp_wifi_internal_free_rx_buffer(eb);
+  }
+
+  return ESP_OK;
+ }
+
+static esp_err_t ignore_event(system_event_t *event) {
+  return ESP_OK;
+}
+
+static esp_err_t wifi_station_connect(system_event_t *event) {
+  return esp_wifi_internal_reg_rxcb(ESP_IF_WIFI_STA, wifi_rx_cb);
+}
+
+static esp_err_t wifi_station_disconnect(system_event_t *event) {
+  return esp_wifi_internal_reg_rxcb(ESP_IF_WIFI_STA, NULL);
+}
+
+static esp_err_t wifi_ap_connect(system_event_t *event) {
+  return esp_wifi_internal_reg_rxcb(ESP_IF_WIFI_AP, wifi_rx_cb);
+}
+
+static esp_err_t wifi_ap_disconnect(system_event_t *event) {
+  return esp_wifi_internal_reg_rxcb(ESP_IF_WIFI_AP, NULL);
+}
+
 void netInit() {
   wifi_initialized = 0;
   wifi_status = 1; // IDLE
@@ -111,14 +146,14 @@ void netInit() {
   } else {
 
     //Register event handlers
-    default_event_handlers[SYSTEM_EVENT_STA_START] = NULL; //esp32WifiStaStartEvent;
-    default_event_handlers[SYSTEM_EVENT_STA_STOP] = NULL; //esp32WifiStaStopEvent;
-    default_event_handlers[SYSTEM_EVENT_STA_CONNECTED] = NULL; // esp32WifiStaConnectedEvent;
-    default_event_handlers[SYSTEM_EVENT_STA_DISCONNECTED] = NULL; // esp32WifiStaDisconnectedEvent;
-    default_event_handlers[SYSTEM_EVENT_STA_GOT_IP] = NULL; // esp32WifiStaGotIpEvent;
-    default_event_handlers[SYSTEM_EVENT_STA_LOST_IP] = NULL; // esp32WifiStaLostIpEvent;
-    default_event_handlers[SYSTEM_EVENT_AP_START] = NULL; // esp32WifiApStartEvent;
-    default_event_handlers[SYSTEM_EVENT_AP_STOP] = NULL; // esp32WifiApStopEvent;
+    default_event_handlers[SYSTEM_EVENT_STA_START] = ignore_event;
+    default_event_handlers[SYSTEM_EVENT_STA_STOP] = ignore_event;
+    default_event_handlers[SYSTEM_EVENT_STA_CONNECTED] = wifi_station_connect;
+    default_event_handlers[SYSTEM_EVENT_STA_DISCONNECTED] = wifi_station_disconnect;
+    default_event_handlers[SYSTEM_EVENT_STA_GOT_IP] = ignore_event;
+    default_event_handlers[SYSTEM_EVENT_STA_LOST_IP] = ignore_event;
+    default_event_handlers[SYSTEM_EVENT_AP_START] = wifi_ap_connect;
+    default_event_handlers[SYSTEM_EVENT_AP_STOP] = wifi_ap_disconnect;
 
     //Register shutdown handler
     esp_register_shutdown_handler((shutdown_handler_t) esp_wifi_stop);
@@ -144,7 +179,7 @@ int netState()
 
 int netSend(char* src,int indexsrc,int lentosend,int lensrc,char* macdst,int inddst,int lendst,int speed)
 {
-  // NOT IMPLEMENTED
+  esp_wifi_internal_tx(wifi_interface, &src[indexsrc], lentosend);
   return 0;
 }
 
@@ -206,14 +241,7 @@ void netSetmode(int mode, char* ssid, int _chn)
 
   if(mode == 1) {
     // set access point mode
-
-    tcpip_adapter_ip_info_t info;
-    IP4_ADDR(&info.ip, 192, 168, 0, 1);
-    IP4_ADDR(&info.gw, 192, 168, 0, 1);
-    IP4_ADDR(&info.netmask, 255, 255, 255, 0);
-    ESP_ERROR_CHECK(tcpip_adapter_dhcps_stop(TCPIP_ADAPTER_IF_AP));
-    ESP_ERROR_CHECK(tcpip_adapter_set_ip_info(TCPIP_ADAPTER_IF_AP, &info));
-    ESP_ERROR_CHECK(tcpip_adapter_dhcps_start(TCPIP_ADAPTER_IF_AP));
+    wifi_interface = ESP_IF_WIFI_AP;
 
     wifi_config_t ap_config;
 
@@ -228,7 +256,7 @@ void netSetmode(int mode, char* ssid, int _chn)
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config));
   } else {
     // set station mode
-    ESP_ERROR_CHECK(tcpip_adapter_dhcps_stop(TCPIP_ADAPTER_IF_AP));
+    wifi_interface = ESP_IF_WIFI_STA;
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
   }
 
@@ -272,6 +300,7 @@ void netScan(char* ssid)
   }
 
   esp_wifi_scan_get_ap_records(&nscan, records);
+  printf("Scan finished scan - found %d records\n", nscan);
 
   for(int i = 0; i < nscan; i++) {
     int enc_type;
@@ -292,6 +321,8 @@ void netScan(char* ssid)
       enc_type = 4; // unsupported
     }
 
+    char *ssid = (char*)&records[i].ssid[0];
+    VPUSH(PNTTOVAL(VMALLOCSTR(ssid,strlen(ssid))));
     VPUSH(PNTTOVAL(VMALLOCSTR((char*)records[i].bssid,6)));
     VPUSH(PNTTOVAL(VMALLOCSTR((char*)records[i].bssid,6)));
     VPUSH(INTTOVAL(records[i].rssi));
@@ -299,9 +330,11 @@ void netScan(char* ssid)
     VPUSH(INTTOVAL(1)); // rateset
     VPUSH(INTTOVAL(enc_type));
     VMKTAB(7);
+    printf("\t%s - %d %d\n", records[i].ssid, records[i].rssi, enc_type);
   }
   VPUSH(NIL);
   while(nscan--) VMKTAB(2);
+  printf("Scan done\n");
 }
 
 void netAuth(char* ssid, char* mac, char* bssid, int chn, int rate, int authmode, int encrypt, char* key)

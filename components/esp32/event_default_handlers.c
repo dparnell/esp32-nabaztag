@@ -48,6 +48,7 @@ do{\
 
 typedef esp_err_t (*system_event_handler_t)(system_event_t *e);
 
+#if 0
 static esp_err_t system_event_ap_start_handle_default(system_event_t *event);
 static esp_err_t system_event_ap_stop_handle_default(system_event_t *event);
 static esp_err_t system_event_sta_start_handle_default(system_event_t *event);
@@ -62,6 +63,7 @@ static esp_err_t system_event_eth_stop_handle_default(system_event_t *event);
 static esp_err_t system_event_eth_connected_handle_default(system_event_t *event);
 static esp_err_t system_event_eth_disconnected_handle_default(system_event_t *event);
 static esp_err_t system_event_eth_got_ip_default(system_event_t *event);
+#endif
 
 /* Default event handler functions
 
@@ -69,6 +71,7 @@ static esp_err_t system_event_eth_got_ip_default(system_event_t *event);
 */
 system_event_handler_t default_event_handlers[SYSTEM_EVENT_MAX] = { 0 };
 
+#if 0
 esp_err_t system_event_eth_start_handle_default(system_event_t *event)
 {
     tcpip_adapter_ip_info_t eth_ip;
@@ -244,6 +247,8 @@ esp_err_t system_event_sta_disconnected_handle_default(system_event_t *event)
     return ESP_OK;
 }
 
+#endif
+
 static esp_err_t esp_system_event_debug(system_event_t *event)
 {
     if (event == NULL) {
@@ -407,6 +412,7 @@ esp_err_t esp_event_process_default(system_event_t *event)
 
 void esp_event_set_default_wifi_handlers()
 {
+  /*
      default_event_handlers[SYSTEM_EVENT_STA_START]        = system_event_sta_start_handle_default;
      default_event_handlers[SYSTEM_EVENT_STA_STOP]         = system_event_sta_stop_handle_default;
      default_event_handlers[SYSTEM_EVENT_STA_CONNECTED]    = system_event_sta_connected_handle_default;
@@ -415,15 +421,17 @@ void esp_event_set_default_wifi_handlers()
      default_event_handlers[SYSTEM_EVENT_STA_LOST_IP]      = system_event_sta_lost_ip_default;
      default_event_handlers[SYSTEM_EVENT_AP_START]         = system_event_ap_start_handle_default;
      default_event_handlers[SYSTEM_EVENT_AP_STOP]          = system_event_ap_stop_handle_default;
-
+  */
      esp_register_shutdown_handler((shutdown_handler_t)esp_wifi_stop);
 }
 
 void esp_event_set_default_eth_handlers()
 {
+  /*
      default_event_handlers[SYSTEM_EVENT_ETH_START]           = system_event_eth_start_handle_default;
      default_event_handlers[SYSTEM_EVENT_ETH_STOP]            = system_event_eth_stop_handle_default;
      default_event_handlers[SYSTEM_EVENT_ETH_CONNECTED]       = system_event_eth_connected_handle_default;
      default_event_handlers[SYSTEM_EVENT_ETH_DISCONNECTED]    = system_event_eth_disconnected_handle_default;
      default_event_handlers[SYSTEM_EVENT_ETH_GOT_IP]          = system_event_eth_got_ip_default;
+  */
 }
