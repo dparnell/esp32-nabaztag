@@ -217,6 +217,9 @@ void netSetmode(int mode, char* ssid, int _chn)
   ESP_ERROR_CHECK(esp_wifi_start());
 }
 
+static uint16_t nscan = 10;
+static wifi_ap_record_t records[10];
+
 void netScan(char* ssid)
 {
   wifi_init_config_t wifiInitializationConfig = WIFI_INIT_CONFIG_DEFAULT();
@@ -244,9 +247,6 @@ void netScan(char* ssid)
     esp_task_wdt_reset();
   }
   printf("\n");
-
-  uint16_t nscan = 10;
-  wifi_ap_record_t records[10];
 
   esp_wifi_scan_get_ap_num(&nscan);
   if(nscan > 10) {
