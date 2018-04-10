@@ -274,6 +274,8 @@ void netScan(char* ssid)
       enc_type = 4; // unsupported
     }
 
+    char *ssid = (char*)&records[i].ssid[0];
+    VPUSH(PNTTOVAL(VMALLOCSTR(ssid,strlen(ssid))));
     VPUSH(PNTTOVAL(VMALLOCSTR((char*)records[i].bssid,6)));
     VPUSH(PNTTOVAL(VMALLOCSTR((char*)records[i].bssid,6)));
     VPUSH(INTTOVAL(records[i].rssi));
