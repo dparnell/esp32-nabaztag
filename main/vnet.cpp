@@ -20,7 +20,8 @@ extern "C" system_event_handler_t default_event_handlers[SYSTEM_EVENT_MAX];
 static int wifi_initialized = 0;
 static int wifi_status = 1;  // RT2501_S_IDLE
 static wifi_interface_t wifi_interface = ESP_IF_WIFI_STA;
-
+static char wifi_ssid[32];
+static char wifi_password[64];
 
 const char * system_event_reasons[] = { "UNSPECIFIED", "AUTH_EXPIRE", "AUTH_LEAVE", "ASSOC_EXPIRE", "ASSOC_TOOMANY", "NOT_AUTHED", "NOT_ASSOCED", "ASSOC_LEAVE", "ASSOC_NOT_AUTHED", "DISASSOC_PWRCAP_BAD", "DISASSOC_SUPCHAN_BAD", "IE_INVALID", "MIC_FAILURE", "4WAY_HANDSHAKE_TIMEOUT", "GROUP_KEY_UPDATE_TIMEOUT", "IE_IN_4WAY_DIFFERS", "GROUP_CIPHER_INVALID", "PAIRWISE_CIPHER_INVALID", "AKMP_INVALID", "UNSUPP_RSN_IE_VERSION", "INVALID_RSN_IE_CAP", "802_1X_AUTH_FAILED", "CIPHER_SUITE_REJECTED", "BEACON_TIMEOUT", "NO_AP_FOUND", "AUTH_FAIL", "ASSOC_FAIL", "HANDSHAKE_TIMEOUT" };
 #define reason2str(r) ((r>176)?system_event_reasons[r-177]:system_event_reasons[r-1])
@@ -161,7 +162,7 @@ int netCb(char* src,int lensrc,char* macsrc)
   return 0;
 }
 
-uint8_t mac[6];
+static uint8_t mac[6];
 
 char* netMac()
 {
@@ -197,8 +198,6 @@ int netChk(char* src, int indexsrc, int lentosend, int lensrc, unsigned int val)
   return val;
 }
 
-static wifi_config_t wifi_config;
-
 void netSetmode(int mode, char* ssid, int _chn)
 {
   wifi_initialized = 1;
@@ -228,7 +227,13 @@ void netSetmode(int mode, char* ssid, int _chn)
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config));
     ESP_ERROR_CHECK(esp_wifi_start());
   } else {
-    printf("netSetMode: %d\n", mode);
+    wifi_config_t wifi_config;
+    memset(&wifi_config, 0, sizeof(wifi_config));
+
+    strncpy((char*)wifi_config.sta.ssid, wifi_ssid, sizeof(wifi_config.sta.ssid));
+    strncpy((char*)wifi_config.sta.password, wifi_password, sizeof(wifi_config.sta.password));
+
+    printf("netSetMode: %d - %s : %s\n", mode, wifi_ssid, wifi_password);
     // set station mode
     wifi_interface = ESP_IF_WIFI_STA;
 
@@ -318,11 +323,10 @@ void netScan(char* ssid)
 
 void netAuth(char* ssid, char* mac, char* bssid, int chn, int rate, int authmode, int encrypt, char* key)
 {
-  printf("netAuth: %s - %d %d\n", ssid, authmode, encrypt);
-  memset(&wifi_config, 0, sizeof(wifi_config));
+  printf("netAuth: %s - %d %d - '%s'\n", ssid, authmode, encrypt, key);
 
-  strncpy((char*)wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid));
-  strncpy((char*)wifi_config.sta.password, key, sizeof(wifi_config.sta.password));
+  strncpy(wifi_ssid, ssid, sizeof(wifi_ssid));
+  strncpy(wifi_password, key, sizeof(wifi_password));
 }
 
 void netSeqAdd(unsigned char* seq,int n)
@@ -343,6 +347,7 @@ void netPmk(char* ssid, char* key, char* buf)
   // NOT IMPLEMENTED
   //printf("xxxx netPmk %s %s\n",ssid,key);
   //strcpy(buf,"01234567012345670123456701234567");
+  strncpy(buf, key, 32);
 }
 
 int netRssi()

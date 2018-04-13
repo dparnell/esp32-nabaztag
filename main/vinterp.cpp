@@ -1267,6 +1267,7 @@ void interpGo()
 					else
 					{
 						char pmk[32];
+            memset(pmk, 0, sizeof(pmk));
 						netPmk(VSTARTBIN(ssid),VSTARTBIN(key),pmk);
 						VPUSH(PNTTOVAL(VMALLOCSTR(pmk,32)));
 					}
