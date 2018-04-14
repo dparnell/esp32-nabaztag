@@ -2811,7 +2811,13 @@ fun loop=
 	else if !tests then
 	(
 		wifiRun;
-    if master then setleds (time_ms>>4)
+    if master then (
+      led 0 (osc (time_ms>>4));
+      led 1 (osc 50 + (time_ms>>4));
+      led 2 (osc 100 + (time_ms>>4));
+      led 3 (osc 150 + (time_ms>>4));
+      led 4 (osc 200 + (time_ms>>4))
+    )
 	)
 	else
 	(
