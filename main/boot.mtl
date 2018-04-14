@@ -1190,7 +1190,7 @@ fun cbsrv cnx code msg cbrequest=
 
 fun starthttpsrv port cbrequest=
 	listentcp port fixarg4 #cbsrv cbrequest;
-	Secholn "##ok";
+	Secholn "##ok - starthttpsrv";
 	0;;
 
 //----------------------
@@ -1933,7 +1933,9 @@ fun cbhttp req=
 		else httpindex
 	);;
 
-fun startconfigserver port=	starthttpsrv port #cbhttp;;
+fun startconfigserver port=
+  Secho "Starting config server on port "; Iecholn port;
+  starthttpsrv port #cbhttp;;
 
 }
 else
