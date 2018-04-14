@@ -93,7 +93,7 @@ fun strreplace2 sn s p v i id=
 		if j!=nil then strcpy sn id+k-i v 0 nil;
 		strreplace2 sn s p v k+strlen p id+k-i+strlen v
 	);;
-	
+
 fun strreplace s p v=
 	let countpattern s p 0 -> i in
 	if !i then s
@@ -248,7 +248,7 @@ fun confInit=
 		load conf 0 "conf.bin" 0 CONF_LENGTH
 	);
 	dump conf;;
-	
+
 fun confReset=
 	set conf=strnew CONF_LENGTH;
 	load conf 0 "conf.bin" 0 CONF_LENGTH;
@@ -341,7 +341,7 @@ fun filterarpip l src =
 	else (hd l)::filterarpip tl l src;;
 
 fun checkarp l src=
-	if l!=nil then let hd l->[ip _ cb] in 
+	if l!=nil then let hd l->[ip _ cb] in
 	(
 		if !vstrcmp src 8+14 ip 0 4 then
 		let strsub src 8+8 6 -> mac in
@@ -378,8 +378,8 @@ fun subnet_ ip i=
 fun subnet ip=
 	Secho "test subnet "; IPecho ip 0 1;
 	Iecholn subnet_ ip 3;;
-	
-	
+
+
 fun arpreq ip cb=
 	let IPecho (if subnet ip then ip else netgateway) 0 1 -> ip in
 	let listswitchstr larp ip -> mac in
@@ -412,7 +412,7 @@ fun resetarp=
 
 // ------------- UDP debut
 fun mkudp ipsrc ipdst portsrc portdst content=
-	let strcatlist 
+	let strcatlist
 	"\$aa\$aa\$03\$00\$00\$00\$08\$00\$45\$00\$00\$00\$00\$00\$00\$00\100\17\0\0"::
 	ipsrc::
 	ipdst::
@@ -490,7 +490,7 @@ var TCPMAX=1024;;
 type Tcp=[stateT locT dstT locpT dstpT seqT ackT cbT macT lastsentT retryT locksendT enableT];;
 
 fun mktcp_ ipsrc ipdst portsrc portdst seq ack flag content=
-	let strcatlist 
+	let strcatlist
 	"\$aa\$aa\$03\$00\$00\$00\$08\$00\$45\$00\$00\$00\$00\$00\$00\$00\100\6\0\0"::
 	ipsrc::
 	ipdst::
@@ -534,7 +534,7 @@ fun headerlen src=((strget src 8+32)>>4)<<2;;
 fun datalength src=(strgetword src 10)-20-headerlen src;;
 
 fun sendtcp t trame=
-//	Secholn "tcpSend"; dump trame; 
+//	Secholn "tcpSend"; dump trame;
 	netSend trame 0 nil (/*MACecho*/ t.macT /*0 1*/) 0 1;
 	let strget trame 8+33 -> flag in
 	set t.seqT=netSeqAdd t.seqT (datalength trame)+(if flag&(TSYN|TFIN) then 1 else 0);
@@ -573,7 +573,7 @@ fun listentcp localp cb=
 	(
 		set ltcp=tcp::ltcp
 	);;
-	
+
 fun findtcp l localp dstp src=
 	if l!=nil then let hd l-> t in
 	if t.locpT==localp && t.dstpT==dstp && (!vstrcmp src 8+16 t.locT 0 4)&& (!vstrcmp src 8+12 t.dstT 0 4)
@@ -585,7 +585,7 @@ fun sendclose t=
 	Secholn "## sendclose";
 	sendtcp t mktcp t TFIN+TACK nil;
 	set t.stateT=STFIN;
-	0;; 
+	0;;
 
 fun cbnettcp src mac=
 	Secho "t";
@@ -1009,7 +1009,7 @@ fun parseans s i n=
 		strcatlist (itoa strget s j+10)::"."::(itoa strget s j+11)::"."::
 		(itoa strget s j+12)::"."::(itoa strget s j+13)::nil
 	else parseans s (j+10+strgetword s j+8) n-1;;
-	
+
 fun parsemsg s=
 	Secholn "parsemsg";
 	let Iecholn strgetword s 0 -> id in
@@ -1051,7 +1051,7 @@ fun dnsreq domain cb=
 
 fun selectbyid d v= d.idD==v;;
 
-fun cbnetdns msg mac ipfrom= 
+fun cbnetdns msg mac ipfrom=
 	Secholn "cbnetdns";
 	dump msg;
 	let Iecholn strgetword msg 0 -> id in
@@ -1099,7 +1099,7 @@ fun startdnsclient=
 
 // --------------- DNS fin
 
-ifdef BOOT 
+ifdef BOOT
 {
 //------------------ serveur HTTP
 
@@ -1128,7 +1128,7 @@ fun findsize s=
 fun tcpwrite cnx sock=
 Secholn "tcpwrite";
 	if sock.sockOutput!=nil then
-	(	
+	(
 		if sock.sockIndex==nil then set sock.sockIndex=0;
 		Iecholn set sock.sockIndex=writetcp cnx sock.sockOutput Iecholn sock.sockIndex;
 		if sock.sockIndex!=nil && sock.sockIndex>=strlen sock.sockOutput then
@@ -1321,7 +1321,7 @@ a:hover {
 	<p><span class=\"Huge\">You are now connected to your Nabaztag.</span><br />
       <span class=\"caution\">(You are NOT connected to the Internet. To reconnect to the Internet restart your Nabaztag.)<br />
         </span><br />
-        To configure your Rabbit, you will need the following information : 
+        To configure your Rabbit, you will need the following information :
       </p>
       <ul>
 <li>Your SSID (the name of your network)</li>
@@ -1344,7 +1344,7 @@ a:hover {
         <li>When finished click on ''Update and start&quot;</li>
         <li>Nabaztag will connect to the Internet : all four lights are going from ORANGE to GREEN</li>
         <li>Reconnect to your usual wi-fi network and  finish your registration. </li>
-      </ol>      
+      </ol>
       <p align=\"center\"><a href=\"#basic\">Click here to Start </a></p>
     </td>
   </tr>
@@ -1420,7 +1420,7 @@ a:hover {
       "::"<AUTH>"::"
     </select></td>
     <td class=\"hint\">Select  your authentication method.</td>
-  </tr>  
+  </tr>
   <tr>
     <td colspan=\"2\" class=\"subhead\">DHCP server </td>
   </tr>
@@ -1570,7 +1570,7 @@ var page_u=
 "<html>
 <head>
 <meta http-equiv=\"content-type\" content=\"text/html;charset=ISO-8859-1\">
-<title>Upgrade your Nabaztag</title> 
+<title>Upgrade your Nabaztag</title>
 <style type=\"text/css\">
 <!--
 body {
@@ -1864,7 +1864,7 @@ fun updateconf args=
 			confSave
 		)
 	);;
-			
+
 
 var firmwarelimit="-violet-";;
 
@@ -1991,7 +1991,7 @@ fun tcpread cnx input httpreq=
 
 // callback d'écriture sur la socket d'une requête
 fun tcpwrite cnx httpreq=
-	set httpreq.stateH=HTTP_CONNECTED; 
+	set httpreq.stateH=HTTP_CONNECTED;
 	if httpreq.outputH!=nil then	// s'il y a des choses à envoyer (notamment la première fois)
 	(	set httpreq.indexH=writetcp cnx httpreq.outputH httpreq.indexH;	// envoyer ce qui peut l'être
 		if httpreq.indexH==nil then	// si erreur lors de l'envoi
@@ -2084,7 +2084,7 @@ fun httpstart httpreq = httpreq.startH;;
 
 var http_sep="\13\n\13\n";;	// séparateur entre l'en-tête et le corps de la réponse à une requête
 
-	
+
 
 //##> retourne le header d'une réponse à une requête
 fun httpgetheader res =
@@ -2166,7 +2166,7 @@ fun _wavcb i =
 		if !wav_buffering then let hd wav_fifo -> sample in
 		let strlen sample -> len in
 		(
-			if wav_index<len then 
+			if wav_index<len then
 				set wav_index=wav_index+playFeed sample /*Iecho*/ wav_index nil;
 			if wav_index>=len then
 			(
@@ -2196,7 +2196,7 @@ fun itobin4 i=strcatlist (ctoa i)::(ctoa i>>8)::(ctoa i>>16)::(ctoa i>>24)::nil;
 fun itobin2 i=strcatlist (ctoa i)::(ctoa i>>8)::nil;;
 
 fun mkwav freq channel bps=
-	let strcatlist 
+	let strcatlist
 		"WAVEfmt "::(itobin4 0x12)::
 			(itobin2 1)::(itobin2 channel)::
 			(itobin4 freq)::(itobin4 freq*channel*bps/8)::
@@ -2533,7 +2533,7 @@ fun wifiReady= match wifi with (stationW -> 1)|(_ -> 0);;
 
 fun wifiConnected= match wifi with (stationW -> 1)|(_ -> 0);;
 
-ifdef BOOT 
+ifdef BOOT
 {
 var BOOT_HTTPTIMEOUT=10;;
 var BOOT_WIFITIMEOUT=20;;
@@ -2547,7 +2547,7 @@ fun boot_leds=
 	let
 		if netState!=RT2501_S_CONNECTED then 0
 		else if netip==netip_empty then 1
-		else let httpstate httpboot -> state in 
+		else let httpstate httpboot -> state in
 		if state==HTTP_SOLVE then 2
 		else if state==HTTP_REACH then 3
 		else if state==HTTP_CONNECTED then 4
@@ -2732,9 +2732,9 @@ var sample221;;
 var sample881;;
 
 var tab_osc={
-	0 0 0 0 0 0 1 1 2 3 3 4 5 6 7 8 
-	9 10 12 13 15 16 18 19 21 23 25 27 29 31 33 35 
-	37 39 42 44 46 49 51 54 56 59 62 64 67 70 73 76 
+	0 0 0 0 0 0 1 1 2 3 3 4 5 6 7 8
+	9 10 12 13 15 16 18 19 21 23 25 27 29 31 33 35
+	37 39 42 44 46 49 51 54 56 59 62 64 67 70 73 76
 	79 81 84 87 90 93 96 99 103 106 109 112 115 118 121 124
 };;
 
@@ -2808,9 +2808,10 @@ fun loop=
 	)
 	else if !tests then
 	(
-		wifiRun
+		wifiRun;
+    if master then setleds (time_ms>>4)
 	)
-	else 
+	else
 	(
 		if tests+1<tablen coltests then
 		let button2->b in if b!=lastclic then
@@ -2889,7 +2890,7 @@ fun loop=
 				if count1!=nil && i-count1>8 then led 3 0;
 				set lasttime1=time_ms
 			);
-			0			
+			0
 		)
 		else if tests==4 then
 		(
@@ -2916,7 +2917,7 @@ fun loop=
 		)
 		else if tests==6 then
 		(
-			let button2-> b in 
+			let button2-> b in
 			if b!=recbutton then
 			(
 				set recbutton=b;
