@@ -65,11 +65,15 @@ static esp_err_t _network_event_cb(void *arg, system_event_t *event){
   } else if(event->event_id == SYSTEM_EVENT_STA_GOT_IP) {
     printf("***SYSTEM_EVENT_STA_GOT_IP\n");
     wifi_status = 4; // RT2501_S_CONNECTED
+  } else {
+    printf("*** UNKNOWN SYSTEM EVENT: %d\n", event->event_id);
   }
   return ESP_OK;
 }
 
 esp_err_t wifi_rx_cb(void *buffer, uint16_t length, void *eb) {
+  printf("wifi_rx_cb: %p - %d\n", buffer, length);
+
   char dummy[6];
   memset(dummy, 0, sizeof(dummy));
   netCb((char*)buffer, length, dummy);
@@ -89,18 +93,22 @@ static esp_err_t ignore_event(system_event_t *event) {
 }
 
 static esp_err_t wifi_station_connect(system_event_t *event) {
+  printf("*** wifi_station_connect ***\n");
   return esp_wifi_internal_reg_rxcb(ESP_IF_WIFI_STA, wifi_rx_cb);
 }
 
 static esp_err_t wifi_station_disconnect(system_event_t *event) {
+  printf("*** wifi_station_disconnect ***\n");
   return esp_wifi_internal_reg_rxcb(ESP_IF_WIFI_STA, NULL);
 }
 
 static esp_err_t wifi_ap_connect(system_event_t *event) {
+  printf("*** wifi_ap_connect ***\n");
   return esp_wifi_internal_reg_rxcb(ESP_IF_WIFI_AP, wifi_rx_cb);
 }
 
 static esp_err_t wifi_ap_disconnect(system_event_t *event) {
+  printf("*** wifi_ap_disconnect ***\n");
   return esp_wifi_internal_reg_rxcb(ESP_IF_WIFI_AP, NULL);
 }
 
@@ -147,6 +155,7 @@ int netState()
 
 int netSend(char* src,int indexsrc,int lentosend,int lensrc,char* macdst,int inddst,int lendst,int speed)
 {
+  printf("netSend: %p, %d, %d", src, indexsrc, lentosend);
   esp_wifi_internal_tx(wifi_interface, &src[indexsrc], lentosend);
   return 0;
 }
