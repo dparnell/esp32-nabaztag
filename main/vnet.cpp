@@ -315,9 +315,7 @@ void netSeqAdd(unsigned char* seq,int n)
 
 void netPmk(char* ssid, char* key, char* buf)
 {
-  // NOT IMPLEMENTED
-  //printf("xxxx netPmk %s %s\n",ssid,key);
-	//strcpy(buf,"01234567012345670123456701234567");
+  strncpy(buf, key, 32);
 }
 
 int netRssi()
