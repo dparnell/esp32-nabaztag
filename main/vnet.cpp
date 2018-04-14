@@ -33,17 +33,7 @@ static esp_err_t _network_event_cb(void *arg, system_event_t *event){
   } else if(event->event_id == SYSTEM_EVENT_STA_DISCONNECTED) {
     uint8_t reason = event->event_info.disconnected.reason;
     printf("***SYSTEM_EVENT_STA_DISCONNECTED: Reason: %u - %s\n", reason, reason2str(reason));
-    if(reason == WIFI_REASON_NO_AP_FOUND) {
-      wifi_status = 0; // RT2501_S_BROKEN
-    } else if(reason == WIFI_REASON_AUTH_FAIL || reason == WIFI_REASON_ASSOC_FAIL) {
-      wifi_status = 0; // RT2501_S_BROKEN
-    } else if(reason == WIFI_REASON_BEACON_TIMEOUT || reason == WIFI_REASON_HANDSHAKE_TIMEOUT) {
-      wifi_status = 3; // RT2501_S_CONNECTING
-    } else if(reason == WIFI_REASON_AUTH_EXPIRE) {
-      wifi_status = 3; // RT2501_S_CONNECTING
-    } else {
-      wifi_status = 0; // RT2501_S_BROKEN
-    }
+    wifi_status = 1; // RT2501_S_IDLE
 
     esp_wifi_connect();
   } else if(event->event_id == SYSTEM_EVENT_AP_START) {
@@ -71,12 +61,49 @@ static esp_err_t _network_event_cb(void *arg, system_event_t *event){
   return ESP_OK;
 }
 
-esp_err_t wifi_rx_cb(void *buffer, uint16_t length, void *eb) {
-  printf("wifi_rx_cb: %p - %d\n", buffer, length);
 
-  char dummy[6];
-  memset(dummy, 0, sizeof(dummy));
-  netCb((char*)buffer, length, dummy);
+void hex_dump(const char *title, const void *data, size_t size) {
+	char ascii[17];
+	size_t i, j;
+	ascii[16] = '\0';
+
+  printf("%s | ", title);
+	for (i = 0; i < size; ++i) {
+		printf("%02X ", ((unsigned char*)data)[i]);
+		if (((unsigned char*)data)[i] >= ' ' && ((unsigned char*)data)[i] <= '~') {
+			ascii[i % 16] = ((unsigned char*)data)[i];
+		} else {
+			ascii[i % 16] = '.';
+		}
+		if ((i+1) % 8 == 0 || i+1 == size) {
+			printf(" ");
+			if ((i+1) % 16 == 0) {
+				printf("|  %s \n", ascii);
+        if(i < size) {
+          printf("%s | ", title);
+        }
+			} else if (i+1 == size) {
+				ascii[(i+1) % 16] = '\0';
+				if ((i+1) % 16 <= 8) {
+					printf(" ");
+				}
+				for (j = (i+1) % 16; j < 16; ++j) {
+					printf("   ");
+				}
+				printf("|  %s \n", ascii);
+        if(i < size-1) {
+          printf("%s | ", title);
+        }
+			}
+		}
+	}
+}
+
+esp_err_t wifi_rx_cb(void *buf, uint16_t length, void *eb) {
+  char *buffer = (char*)buf;
+  hex_dump("wifi_rx_cb", buffer, length);
+
+  netCb((char*)&buffer[14], length-14, (char*)&buffer[6]);
 
   if(eb != NULL) {
     esp_wifi_internal_free_rx_buffer(eb);
@@ -155,7 +182,8 @@ int netState()
 
 int netSend(char* src,int indexsrc,int lentosend,int lensrc,char* macdst,int inddst,int lendst,int speed)
 {
-  printf("netSend: %p, %d, %d", src, indexsrc, lentosend);
+  printf("netSend: %p, %d, %d, %d", src, indexsrc, lentosend, lensrc);
+  hex_dump("netSend", src, lensrc);
   esp_wifi_internal_tx(wifi_interface, &src[indexsrc], lentosend);
   return 0;
 }
@@ -211,7 +239,7 @@ void netSetmode(int mode, char* ssid, int _chn)
 {
   wifi_initialized = 1;
   // stop any existing WiFi connection
-  ESP_ERROR_CHECK(esp_wifi_stop());
+  // ESP_ERROR_CHECK(esp_wifi_stop());
 
   wifi_init_config_t wifiInitializationConfig = WIFI_INIT_CONFIG_DEFAULT();
   ESP_ERROR_CHECK(esp_wifi_init(&wifiInitializationConfig));
@@ -332,10 +360,11 @@ void netScan(char* ssid)
 
 void netAuth(char* ssid, char* mac, char* bssid, int chn, int rate, int authmode, int encrypt, char* key)
 {
-  printf("netAuth: %s - %d %d - '%s'\n", ssid, authmode, encrypt, key);
+  printf("netAuth: %s - %d %d\n", ssid, authmode, encrypt);
 
   strncpy(wifi_ssid, ssid, sizeof(wifi_ssid));
-  strncpy(wifi_password, key, sizeof(wifi_password));
+  //strncpy(wifi_password, key, sizeof(wifi_password));
+  strncpy(wifi_password, "mollymarcus", sizeof(wifi_password));
 }
 
 void netSeqAdd(unsigned char* seq,int n)
