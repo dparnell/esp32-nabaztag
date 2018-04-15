@@ -408,6 +408,9 @@ void netAuth(char* ssid, char* mac, char* bssid, int chn, int rate, int authmode
 
   strncpy(wifi_ssid, ssid, sizeof(wifi_ssid));
   strncpy(wifi_password, key, sizeof(wifi_password));
+
+  // use the given auth
+  netSetmode(0, NULL, 0);
 }
 
 void netSeqAdd(unsigned char* seq,int n)
