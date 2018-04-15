@@ -141,9 +141,20 @@ int getButton() {
   return gpio_get_level(BUTTON_1_PIN) == 0;
 }
 
+SemaphoreHandle_t xSemaphore = NULL;
+
+int lockInterp() {
+  return xSemaphoreTake( xSemaphore, ( TickType_t ) 10000 ) ;
+}
+
+void unlockInterp() {
+  xSemaphoreGive( xSemaphore );
+}
+
 void setup() {
   Serial.begin(115200);
 
+  vSemaphoreCreateBinary( xSemaphore );
   gpio_set_direction(BUTTON_1_PIN, GPIO_MODE_INPUT);
 
   netInit();
@@ -158,16 +169,19 @@ void setup() {
 
   loaderInit((char*)dumpbc);
 
+  lockInterp();
   VPUSH(INTTOVAL(0));
   interpGo();
   VDROP();
+  unlockInterp();
 }
 
 void loop() {
-
+  lockInterp();
 	VPUSH(VCALLSTACKGET(sys_start, SYS_CBLOOP));
 	if (VSTACKGET(0)!=NIL) interpGo();
 	VDROP();
+  unlockInterp();
 
   // update the LEDs
   ws2812_show();

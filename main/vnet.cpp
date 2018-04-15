@@ -15,6 +15,10 @@
 #include "esp_task_wdt.h"
 
 
+
+extern int lockInterp();
+extern void unlockInterp();
+
 extern "C" system_event_handler_t default_event_handlers[SYSTEM_EVENT_MAX];
 
 static int wifi_initialized = 0;
@@ -62,6 +66,7 @@ static esp_err_t _network_event_cb(void *arg, system_event_t *event){
 }
 
 
+#ifdef DUMP_PACKETS
 void hex_dump(const char *title, const void *data, size_t size) {
 	char ascii[17];
 	size_t i, j;
@@ -97,13 +102,17 @@ void hex_dump(const char *title, const void *data, size_t size) {
 			}
 		}
 	}
+  printf("-----------------------------\n");
 }
+#endif
 
 esp_err_t wifi_rx_cb(void *buf, uint16_t length, void *eb) {
   char *buffer = (char*)buf;
+#ifdef DUMP_PACKETS
   hex_dump("wifi_rx_cb", buffer, length);
+#endif
 
-  netCb((char*)&buffer[14], length-14, (char*)&buffer[6]);
+  netCb((char*)&buffer[6], length-6, (char*)&buffer[6]);
 
   if(eb != NULL) {
     esp_wifi_internal_free_rx_buffer(eb);
@@ -180,22 +189,43 @@ int netState()
   return wifi_status;
 }
 
+static unsigned char wifi_buffer[2048];
+
 int netSend(char* src,int indexsrc,int lentosend,int lensrc,char* macdst,int inddst,int lendst,int speed)
 {
-  printf("netSend: %p, %d, %d, %d", src, indexsrc, lentosend, lensrc);
+  if (indexsrc<0) return -1;
+  if (indexsrc+lentosend>lensrc) lentosend=lensrc-indexsrc;
+  if (lentosend<=0) return -1;
+  if (inddst<0) return -1;
+  if (inddst+6>lendst) return -1;
+
+  printf("netSend: %p, %d, %d, %d, %p, %d, %d, %d\n", src, indexsrc, lentosend, lensrc, macdst, inddst, lendst, speed);
+  #ifdef DUMP_PACKETS
   hex_dump("netSend", src, lensrc);
-  esp_wifi_internal_tx(wifi_interface, &src[indexsrc], lentosend);
+  #endif
+
+  // put in the destination mac
+  memcpy(wifi_buffer, macdst, 6);
+  // copy the buffer from the vm
+  memcpy(&wifi_buffer[6], &src[indexsrc], lentosend);
+  // overwrite source macid in the buffer with the real one
+  memcpy(&wifi_buffer[6], netMac(), 6);
+
+  esp_wifi_internal_tx(wifi_interface, wifi_buffer, lentosend + 12);
   return 0;
 }
 
 int netCb(char* src,int lensrc,char* macsrc)
 {
+  lockInterp();
   VPUSH(PNTTOVAL(VMALLOCSTR(src,lensrc)));
   VPUSH(PNTTOVAL(VMALLOCSTR(macsrc,6)));
   VPUSH(VCALLSTACKGET(sys_start,SYS_CBTCP));
   if (VSTACKGET(0)!=NIL) interpGo();
   else { VDROP();VDROP();}
   VDROP();
+  unlockInterp();
+
   return 0;
 }
 
@@ -203,8 +233,13 @@ static uint8_t mac[6];
 
 char* netMac()
 {
-  // make sure that the WiFi stuff is initialized first
-  esp_wifi_get_mac(WIFI_IF_STA, mac);
+  wifi_mode_t mode;
+  esp_wifi_get_mode(&mode);
+  if(mode == WIFI_MODE_AP) {
+    esp_wifi_get_mac(WIFI_IF_AP, mac);
+  } else {
+    esp_wifi_get_mac(WIFI_IF_STA, mac);
+  }
 
   return (char*)mac;
 }
@@ -279,7 +314,16 @@ void netSetmode(int mode, char* ssid, int _chn)
     ESP_ERROR_CHECK(esp_wifi_start());
     ESP_ERROR_CHECK(esp_wifi_connect());
 
+    int countdown = 600;
     wifi_status = 3;
+    printf("Connecting.");
+    while(countdown-- && wifi_status == 3) {
+      vTaskDelay(100 / portTICK_PERIOD_MS);
+      printf(".");
+      esp_task_wdt_reset();
+    }
+
+    printf("\n");
   }
 
 }
@@ -363,8 +407,7 @@ void netAuth(char* ssid, char* mac, char* bssid, int chn, int rate, int authmode
   printf("netAuth: %s - %d %d\n", ssid, authmode, encrypt);
 
   strncpy(wifi_ssid, ssid, sizeof(wifi_ssid));
-  //strncpy(wifi_password, key, sizeof(wifi_password));
-  strncpy(wifi_password, "mollymarcus", sizeof(wifi_password));
+  strncpy(wifi_password, key, sizeof(wifi_password));
 }
 
 void netSeqAdd(unsigned char* seq,int n)

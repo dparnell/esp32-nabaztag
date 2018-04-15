@@ -858,11 +858,13 @@ fun cbnetdhcp67 src macfrom hostip=
 	);;
 
 fun startdhcp=
+  Secholn "Sending DHCP broadcast packet.";
 	udpsend netip 68 ipbroadcast 67 (mkdhcp DHCP_DISCOVER "\0\0\0\0" nil nil) macbroadcast;
 	regudp 68 #cbnetdhcp;
 	0;;
 
 fun startdhcpserver=
+  Secholn "Started DHCP server";
 	regudp 67 #cbnetdhcp67;
 	0;;
 
@@ -886,6 +888,7 @@ fun net src mac=
 	0;;
 
 fun netstart=
+  Secholn "Installing RAW networking callback";
 	netCb #net;
 	resetarp;
 	resettcp;
@@ -973,12 +976,8 @@ fun nettcp t val msg=
 	else let listswitch ltcp t -> cb in
 		call cb [t val msg];;
 
-fun startdhcp=0;;
-fun startdhcpserver=0;;
-
-fun nettime=0;;
-
 fun netstart=
+  Secholn "Installing emulation networking callbacks";
 	tcpCb #nettcp;
 	udpCb #netudp;
 	set ltcp=nil;
@@ -2371,9 +2370,13 @@ fun wifiInit rescan=
 		)
 		else
 		(
-			if confGetDhcp then	set netip=netip_empty
+			if confGetDhcp then	(
+        Secholn("DHCP enabled");
+        set netip=netip_empty
+      )
 			else
 			(
+        Secholn("DHCP not enabled");
 				set netmask=confGetNetmask;
 				set netgateway=confGetNetgateway;
 				set netdns=confGetNetdns;
@@ -2505,7 +2508,10 @@ fun wifiRun=
 					if confGetDhcp then startdhcp;
 					startdnsclient;
 					dhcpW time
-				)
+				) else (
+          // Secholn "gostationW state="; Iecholn state;
+          nil
+        )
 			)
 		|(dhcpW t-> if netip!=netip_empty then
 				(
@@ -2949,21 +2955,28 @@ fun loop=
 
 
 fun main=
+  Secholn "Staring up...";
+  setleds 0x010101;
 	MACecho netMac 0 1;
 	Secho "button :";
 	Iecholn set master=button2;
 	Secholn ":started";
+  Secholn "Initializing config";
 	confInit;
+  Secholn "Starting WiFi networking";
 	wifiInit 1;
+  Secholn "Installing loop callback";
 	loopcb	#loop;
 
+  Secholn "Starting network...";
 	netstart;
+  Secholn "Started network";
 //	startconfigserver 8080;
 	sndVol button3;
 //	wavstartlocal midi_start::nil;
 
 	set start=time_ms;
 	setleds if master then 0xff else 0xff00ff;
+  Secholn "Good to go!";
 	0;;
-
 }
