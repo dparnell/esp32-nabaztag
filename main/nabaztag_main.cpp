@@ -186,5 +186,6 @@ void loop() {
   // update the LEDs
   ws2812_show();
 
+  vTaskDelay(50 / portTICK_PERIOD_MS);
   esp_task_wdt_reset();
 }
