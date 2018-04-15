@@ -12,7 +12,7 @@
 #include "log.h"
 
 static int my_msk = LOG_INIT | LOG_VM | LOG_SIMUNET ;
-#define BUFSIZE 256
+#define BUFSIZE 1024
 static char tmpbuf[BUFSIZE];
 
 // siml : Stopped In the Midle of a Line. A 1 quand on a pas affiché

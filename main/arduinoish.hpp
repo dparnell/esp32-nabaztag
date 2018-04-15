@@ -170,7 +170,7 @@
       ret = nvs_flash_init();
     }
 
-    xTaskCreate(task_main, "task_main", 1024*16, NULL, 10, NULL);
+    xTaskCreate(task_main, "task_main", CONFIG_MAIN_TASK_STACK_SIZE, NULL, 10, NULL);
     return 0;
   }
 #endif
