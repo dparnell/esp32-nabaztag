@@ -199,17 +199,17 @@ int netSend(char* src,int indexsrc,int lentosend,int lensrc,char* macdst,int ind
   if (inddst<0) return -1;
   if (inddst+6>lendst) return -1;
 
-  printf("netSend: %p, %d, %d, %d, %p, %d, %d, %d\n", src, indexsrc, lentosend, lensrc, macdst, inddst, lendst, speed);
+  // printf("netSend: %p, %d, %d, %d, %p, %d, %d, %d\n", src, indexsrc, lentosend, lensrc, macdst, inddst, lendst, speed);
   #ifdef DUMP_PACKETS
   hex_dump("netSend", src, lensrc);
   #endif
 
   // put in the destination mac
-  memcpy(wifi_buffer, macdst, 6);
+  memcpy(wifi_buffer, macdst + inddst, lendst);
   // copy the buffer from the vm
-  memcpy(&wifi_buffer[6], &src[indexsrc], lentosend);
+  memcpy(wifi_buffer + lendst, src + indexsrc, lentosend);
   // overwrite source macid in the buffer with the real one
-  memcpy(&wifi_buffer[6], netMac(), 6);
+  memcpy(wifi_buffer + 6, netMac(), 6);
 
   esp_wifi_internal_tx(wifi_interface, wifi_buffer, lentosend + 12);
   return 0;
