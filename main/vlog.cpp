@@ -3,13 +3,19 @@
 
 #include <string.h>
 
-#include"vmem.h"
-#include"vloader.h"
+#include "vmem.h"
+#include "vloader.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
 #include <sys/time.h>
-#include"vlog.h"
+#include "vlog.h"
+
+#include "esp_system.h"
+#include "nvs_flash.h"
+#include "nvs.h"
+
+#define STORAGE_NAMESPACE "storage"
 
 void dump(uchar *src,int len)
 {
@@ -64,40 +70,52 @@ void logGC()
 
 int sysLoad(char *dst,int i,int ldst,char *filename,int j,int len)
 {
-  char buf[128];
-  sprintf(buf, "/sdcard/%s", filename);
+  nvs_handle h;
+  esp_err_t err;
+  size_t required_size = 0;
 
-	FILE *f;
-	if ((j<0)||(i<0)||(len<=0)) return 0;
-	if (i+len>ldst) len=ldst-i;
-	if (len<=0) return 0;
-	f=fopen(buf,"rb");
-	if (!f) return 0;
-	fseek(f,j,SEEK_SET);
-	len=fread(dst,1,len,f);
-	fclose(f);
-	return len;
+  err = nvs_open(STORAGE_NAMESPACE, NVS_READWRITE, &h);
+  if (err != ESP_OK) return err;
 
-  return 0;
+  err = nvs_get_blob(h, filename, NULL, &required_size);
+  if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
+    nvs_close(h);
+    return 0;
+  }
+
+  err = nvs_get_blob(h, filename, dst, &required_size);
+  if(err != ESP_OK) {
+    required_size = 0;
+  }
+  nvs_close(h);
+
+  return required_size;
 }
 
 // pour le firmware, le "fichier" ouvert est toujours l'eeprom
 int sysSave(char *dst,int i,int ldst,char *filename,int j,int len)
 {
-  char buf[128];
-  sprintf(buf, "/sdcard/%s", filename);
+  nvs_handle h;
+  esp_err_t err;
+  err = nvs_open(STORAGE_NAMESPACE, NVS_READWRITE, &h);
+  if (err != ESP_OK) return err;
+  err = nvs_set_blob(h, filename, dst, len);
 
-	FILE *f;
-	if ((j<0)||(i<0)||(len<=0)) return 0;
-	if (i+len>ldst) len=ldst-i;
-	if (len<=0) return 0;
-	f=fopen(buf,"rb+");
-	if (!f) f=fopen(buf,"wb+");
-	if (!f) return 0;
-	fseek(f,j,SEEK_SET);
-	len=fwrite(dst,1,len,f);
-	fclose(f);
-	return len;
+  if (err != ESP_OK) {
+    nvs_close(h);
+    return err;
+  }
+
+  // Commit
+  err = nvs_commit(h);
+  if (err != ESP_OK) {
+    nvs_close(h);
+    return err;
+  }
+
+  // Close
+  nvs_close(h);
+  return 0;
 }
 
 static char firstTimeSet = 0;
