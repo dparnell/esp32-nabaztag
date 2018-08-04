@@ -16,6 +16,9 @@
 #include "log.h"
 #include "vnet.h"
 
+#include "audio.h"
+#include "spi.h"
+
 extern "C" {
 #include "ws2812.h"
 }
@@ -89,6 +92,10 @@ void setup() {
   for(int i=0; i < PIXEL_COUNT; i++) {
     pixels[i] = makeRGBVal(0, 0, 0);
   }
+
+  init_spi();
+  //Init Audio
+  init_vlsi();
 
   ws2812_show();
 

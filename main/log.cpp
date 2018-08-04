@@ -11,7 +11,7 @@
 
 #include "log.h"
 
-static int my_msk = LOG_INIT | LOG_VM | LOG_SIMUNET ;
+static int my_msk = LOG_INIT | LOG_VM | LOG_SIMUNET | LOG_SIMUAUDIO;
 #define BUFSIZE 1024
 static char tmpbuf[BUFSIZE];
 
