@@ -8,7 +8,12 @@
 
 #define putst_uart(val) my_printf(LOG_SIMUAUDIO, "%s", val)
 
-#if (PCB_RELEASE == LLC2_3) || (PCB_RELEASE == LLC2_4c)
+#if PCB_RELEASE == ESP32
+
+#define VS1003_MODE_VALUE_L (0x00)
+#define VS1003_MODE_VALUE_H (SM_SDINEW) //VS1002 native SPI mode active
+
+#elif (PCB_RELEASE == LLC2_3) || (PCB_RELEASE == LLC2_4c)
 
 #ifdef SINUS_TEST                    //SDI tests allowed
 #define VS1003_MODE_VALUE_L (SM_TESTS)
@@ -47,6 +52,7 @@ ushort vlsi_read_sci(uchar reg)
 {
   ushort received_short;
   while( !(INT_AUDIO_READ & INT_AUDIO_BIT) ) CLR_WDT;
+  CS_AUDIO_SDI_SET;
   CS_AUDIO_SCI_CLEAR;
   WriteSPI(VS1003_READ);
   WriteSPI(reg);
@@ -59,23 +65,20 @@ ushort vlsi_read_sci(uchar reg)
 
 void vlsi_write_sci(uchar reg, ushort val)
 {
-  //my_printf(LOG_SIMUAUDIO, "vlsi_write_sci: %d - %d\n", reg, val);
-
-  while( !(INT_AUDIO_READ & INT_AUDIO_BIT) ) {
-    // my_printf(LOG_SIMUAUDIO, "vlsi_write_sci: waiting - %d - %d\n", INT_AUDIO_READ, INT_AUDIO_BIT);
-    CLR_WDT;
-  }
+  while( !(INT_AUDIO_READ & INT_AUDIO_BIT) ) CLR_WDT;
+  CS_AUDIO_SDI_SET;
   CS_AUDIO_SCI_CLEAR;
   WriteSPI(VS1003_WRITE);
   WriteSPI(reg);
   WriteSPI(val>>8);
-  WriteSPI(val);
+  WriteSPI(val & 0xff);
   CS_AUDIO_SCI_SET;
 }
 
 int vlsi_feed_sdi(uchar* data,int len)
 {
   int i=0;
+  CS_AUDIO_SCI_SET;
   CS_AUDIO_SDI_CLEAR;
   while((i<len)&&(INT_AUDIO_READ & INT_AUDIO_BIT)) WriteSPI(data[i++]);
   CS_AUDIO_SDI_SET;
@@ -112,7 +115,7 @@ void patchwma()
   for(int i=0;i<patchwma_len;i++)
     {
       int k=patchwma_data[i];
-      vlsi_write_sci(k>>16,k);
+      vlsi_write_sci(k>>16, k);
     }
 }
 /****************************************************************************/
@@ -132,18 +135,41 @@ void init_vlsi(void)
   CS_AUDIO_SDI_AS_OUTPUT;
   RST_AUDIO_AS_OUTPUT;
 
+  CS_AUDIO_AMP_CLEAR;
+  CS_AUDIO_SCI_SET;
+  CS_AUDIO_SDI_SET;
+  RST_AUDIO_CLEAR;
+
   putst_uart("init_vlsi: slow SPI\n");
   //Set SPI0 to low speed before initialising PLL of VS1003 => 2.11MHz max
   //SPI0 baudrate = APB_CLK/16 => 2MHz @ 32MHz
   SlowSPI();
 
   putst_uart("init_vlsi: reset VS1003\n");
-  //Set VS1003
+  //reset VS1003
   RST_AUDIO_CLEAR;
   DelayMs(1);
   RST_AUDIO_SET;
   DelayMs(1);
 
+  vlsi_write_sci(VS1003_VOLUME, 0xffff);
+  vlsi_write_sci(VS1003_AUDATA, 10);
+
+  DelayMs(100);
+
+  vlsi_write_sci(VS1003_VOLUME, 0xfefe);
+  vlsi_write_sci(VS1003_AUDATA, 44101);
+
+  vlsi_write_sci(VS1003_VOLUME, 0x2020);
+
+  vlsi_write_sci(VS1003_MODE,(VS1003_MODE_VALUE_H<<8)|VS1003_MODE_VALUE_L | SM_RESET);
+  DelayMs(1);
+
+  vlsi_write_sci(VS1003_CLOCKF, 0xb800);
+  DelayMs(1);
+
+  FastSPI();
+  /*
   //Update CLKI of VS 1003 from 12.688MHz to 12.688MHZ x 4 = 49.152MHz
   //So SCI write and SDI can be up to 49.152MHz/4 = 12.288MHZ
   //So SCI read can be up to 49.152MHz/6 = 8.192MHZ
@@ -167,6 +193,7 @@ void init_vlsi(void)
 
   putst_uart("init_vlsi: patchwma\n");
   patchwma();
+  */
 
   putst_uart("init_vlsi: done\n");
 }
@@ -220,6 +247,7 @@ void stop_adpcm_encode(void)
 /****************************************************************************/
 void set_vlsi_volume(uchar volume)
 {
+  volume = 16;
   //Config VOLUME
   vlsi_write_sci(VS1003_VOLUME,(volume<<8)|volume);
   if (volume>=0x7f) {
@@ -241,7 +269,6 @@ uchar rec_state=0;
 void rec_start(int sampling_frequency,int gain)
 {
   if (play_state) return;
-  putst_uart("rec_start\n");
   clear_vlsi_fifo();
   TURN_OFF_AUDIO_AMPLIFIER;
   init_adpcm_encode(sampling_frequency,gain);
@@ -251,7 +278,6 @@ void rec_start(int sampling_frequency,int gain)
 void rec_stop()
 {
   if (!rec_state) return;
-  putst_uart("rec_stop\n");
   stop_adpcm_encode();
   TURN_OFF_AUDIO_AMPLIFIER;
   clear_vlsi_fifo();
@@ -290,7 +316,6 @@ int valtrytofeed=2048;
 void play_start(int trytofeed)
 {
   if (rec_state) return;
-  putst_uart("play_start\n");
   clear_vlsi_fifo();
   patchwma();
 
@@ -303,7 +328,6 @@ void play_start(int trytofeed)
 void play_stop()
 {
   if (!play_state) return;
-  putst_uart("play_stop\n");
   TURN_OFF_AUDIO_AMPLIFIER;
   clear_vlsi_fifo();
   play_state=0;
@@ -377,7 +401,6 @@ void play_eof()
 /****************************************************************************/
 void clear_vlsi_fifo(void)
 {
-  putst_uart("clear_vlsi_fifo\n");
   //Config MODE
   vlsi_write_sci(VS1003_MODE,(VS1003_MODE_VALUE_H<<8)|VS1003_MODE_VALUE_L | SM_RESET);
   //  vlsi_write_sci(VS1003_MODE,0x0805);

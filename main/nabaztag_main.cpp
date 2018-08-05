@@ -23,7 +23,7 @@ extern "C" {
 #include "ws2812.h"
 }
 
-static const char *TAG = "nabaztag";
+// static const char *TAG = "nabaztag";
 
 void simuSetMotor(int i,int val);
 
@@ -114,6 +114,9 @@ void loop() {
 	if (VSTACKGET(0)!=NIL) interpGo();
 	VDROP();
   unlockInterp();
+
+  play_check(0);
+  rec_check();
 
   // update the LEDs
   ws2812_show();

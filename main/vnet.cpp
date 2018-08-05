@@ -8,13 +8,14 @@
 #include "vnet.h"
 #include "vlog.h"
 #include "vinterp.h"
+//#include "audio.h"
 
 #include "esp_wifi.h"
 #include "esp_wifi_internal.h"
 #include <esp_event_loop.h>
 #include "esp_task_wdt.h"
 
-
+//#define DUMP_PACKETS
 
 extern int lockInterp();
 extern void unlockInterp();
@@ -113,7 +114,10 @@ esp_err_t wifi_rx_cb(void *buf, uint16_t length, void *eb) {
 #endif
 
   netCb((char*)&buffer[6], length-6, (char*)&buffer[6]);
-
+  /*
+  play_check(0);
+  rec_check();
+  */
   if(eb != NULL) {
     esp_wifi_internal_free_rx_buffer(eb);
   }
@@ -406,8 +410,16 @@ void netAuth(char* ssid, char* mac, char* bssid, int chn, int rate, int authmode
 {
   printf("netAuth: %s - %d %d\n", ssid, authmode, encrypt);
 
-  strncpy(wifi_ssid, ssid, sizeof(wifi_ssid));
-  strncpy(wifi_password, key, sizeof(wifi_password));
+  if(ssid) {
+    strncpy(wifi_ssid, ssid, sizeof(wifi_ssid));
+  } else {
+    memset(wifi_ssid, 0, sizeof(wifi_ssid));
+  }
+  if(key) {
+    strncpy(wifi_password, key, sizeof(wifi_password));
+  } else {
+    memset(wifi_password, 0, sizeof(wifi_password));
+  }
 
   // use the given auth
   netSetmode(0, NULL, 0);

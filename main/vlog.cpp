@@ -418,6 +418,8 @@ void sysMotorset(int motor,int sens)
 	set_motor_dir(motor,sens);
 #endif
 #ifdef VREAL
+  // @TODO: implement this
+  /*
 //        char buffer[256];
         motor=1+(motor&1);
 
@@ -425,7 +427,8 @@ void sysMotorset(int motor,int sens)
 //        consolestr(buffer);
 
         if (sens==0) stop_motor(motor);
-        else run_motor(motor,255,(sens>0)?REVERSE:FORWARD/*:REVERSE*/);
+        else run_motor(motor,255,(sens>0)?REVERSE:FORWARD);
+*/
 #endif
 }
 
@@ -438,23 +441,18 @@ int sysMotorget(int motor)
 	return get_motor_val(motor);
 #endif
 #ifdef VREAL
+  // @TODO: implement this
+  /*
 //        char buffer[256];
         int k,kx;
         motor=1+(motor&1);
         kx=(int)get_motor_position(motor);
-/*        k=(int)get_motor_position(motor);
-        if (kmotor[motor]!=k)
-        {
-          kmotor[motor]=k;
-          kvmotor[motor]++;
-        }
-        kx=kvmotor[motor];
-*/
 
 //        sprintf(buffer,"getmotor %d pos %x / %x\r\n",motor,k,kx);
 //        if(motor==2)
 //        consolestr(buffer);
         return kx;
+        */
 #endif
   return 0;
 }
@@ -475,7 +473,10 @@ char* sysRfidget()
         return get_rfid();
 #endif
 #ifdef VREAL
+        // @TODO: implement this
+        /*
         return get_rfid_first_device();
+        */
 #endif
         return NULL;
 }
@@ -488,7 +489,8 @@ void sysReboot()
     exit(0);
 #endif
 #ifdef VREAL
-    reset_uc();
+    // @TODO: implement this
+    // reset_uc();
 #endif
 
 }
@@ -501,8 +503,11 @@ void sysFlash(char* firmware,int len)
     exit(0);
 #endif
 #ifdef VREAL
+    // @TODO: implement this
+    /*
   __disable_interrupt();
   flash_uc((unsigned char*)firmware,len,buffer_temp);
+    */
 #endif
 
 }

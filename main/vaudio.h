@@ -4,7 +4,7 @@
 #ifndef _VAUDIO_
 #define _VAUDIO_
 
-#define AUDIO_FIFOPLAY	1024
+#define AUDIO_FIFOPLAY	4096
 extern char audioFifoPlay[AUDIO_FIFOPLAY];
 
 void audioInit();

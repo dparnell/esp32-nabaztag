@@ -7,7 +7,7 @@
 #include "common.h"
 
 // #define VSIMU /// d�fini dans le Makefile : -DVSIMU
-//#define VREAL
+// #define VREAL
 #define USE_SPI_SRAM
 // taille en mots 32 bits (128kwords -> 512ko)
 #ifdef USE_SPI_SRAM
