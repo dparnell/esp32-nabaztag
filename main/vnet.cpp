@@ -15,7 +15,7 @@
 #include <esp_event_loop.h>
 #include "esp_task_wdt.h"
 
-//#define DUMP_PACKETS
+// #define DUMP_PACKETS
 
 extern int lockInterp();
 extern void unlockInterp();
@@ -27,6 +27,9 @@ static int wifi_status = 1;  // RT2501_S_IDLE
 static wifi_interface_t wifi_interface = ESP_IF_WIFI_STA;
 static char wifi_ssid[32];
 static char wifi_password[64];
+
+static const char BROADCAST_MACID[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+static uint8_t mac[6];
 
 const char * system_event_reasons[] = { "UNSPECIFIED", "AUTH_EXPIRE", "AUTH_LEAVE", "ASSOC_EXPIRE", "ASSOC_TOOMANY", "NOT_AUTHED", "NOT_ASSOCED", "ASSOC_LEAVE", "ASSOC_NOT_AUTHED", "DISASSOC_PWRCAP_BAD", "DISASSOC_SUPCHAN_BAD", "IE_INVALID", "MIC_FAILURE", "4WAY_HANDSHAKE_TIMEOUT", "GROUP_KEY_UPDATE_TIMEOUT", "IE_IN_4WAY_DIFFERS", "GROUP_CIPHER_INVALID", "PAIRWISE_CIPHER_INVALID", "AKMP_INVALID", "UNSUPP_RSN_IE_VERSION", "INVALID_RSN_IE_CAP", "802_1X_AUTH_FAILED", "CIPHER_SUITE_REJECTED", "BEACON_TIMEOUT", "NO_AP_FOUND", "AUTH_FAIL", "ASSOC_FAIL", "HANDSHAKE_TIMEOUT" };
 #define reason2str(r) ((r>176)?system_event_reasons[r-177]:system_event_reasons[r-1])
@@ -113,7 +116,10 @@ esp_err_t wifi_rx_cb(void *buf, uint16_t length, void *eb) {
   hex_dump("wifi_rx_cb", buffer, length);
 #endif
 
-  netCb((char*)&buffer[6], length-6, (char*)&buffer[6]);
+  if(memcmp(buffer, mac, 6) == 0 || memcmp(buffer, BROADCAST_MACID, 6) == 0) {
+    netCb((char*)&buffer[6], length-6, (char*)&buffer[6]);
+  }
+
   /*
   play_check(0);
   rec_check();
@@ -132,6 +138,16 @@ static esp_err_t ignore_event(system_event_t *event) {
   return ESP_OK;
 }
 
+static esp_err_t wifi_station_start(system_event_t *event) {
+  printf("*** wifi_station_start ***\n");
+  return esp_wifi_internal_reg_rxcb(ESP_IF_WIFI_STA, wifi_rx_cb);
+}
+
+static esp_err_t wifi_station_stop(system_event_t *event) {
+  printf("*** wifi_station_start ***\n");
+  return esp_wifi_internal_reg_rxcb(ESP_IF_WIFI_STA, NULL);
+}
+
 static esp_err_t wifi_station_connect(system_event_t *event) {
   printf("*** wifi_station_connect ***\n");
   return esp_wifi_internal_reg_rxcb(ESP_IF_WIFI_STA, wifi_rx_cb);
@@ -142,13 +158,13 @@ static esp_err_t wifi_station_disconnect(system_event_t *event) {
   return esp_wifi_internal_reg_rxcb(ESP_IF_WIFI_STA, NULL);
 }
 
-static esp_err_t wifi_ap_connect(system_event_t *event) {
-  printf("*** wifi_ap_connect ***\n");
+static esp_err_t wifi_ap_start(system_event_t *event) {
+  printf("*** wifi_ap_start ***\n");
   return esp_wifi_internal_reg_rxcb(ESP_IF_WIFI_AP, wifi_rx_cb);
 }
 
-static esp_err_t wifi_ap_disconnect(system_event_t *event) {
-  printf("*** wifi_ap_disconnect ***\n");
+static esp_err_t wifi_ap_stop(system_event_t *event) {
+  printf("*** wifi_ap_stop ***\n");
   return esp_wifi_internal_reg_rxcb(ESP_IF_WIFI_AP, NULL);
 }
 
@@ -159,25 +175,25 @@ void netInit() {
 
   esp_event_loop_init(&_network_event_cb, NULL);
 
+  printf("Loading default WiFi settings...\n");
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
   ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
   //Register event handlers
-  default_event_handlers[SYSTEM_EVENT_STA_START] = ignore_event;
-  default_event_handlers[SYSTEM_EVENT_STA_STOP] = ignore_event;
+  default_event_handlers[SYSTEM_EVENT_STA_START] = wifi_station_start;
+  default_event_handlers[SYSTEM_EVENT_STA_STOP] = wifi_station_stop;
   default_event_handlers[SYSTEM_EVENT_STA_CONNECTED] = wifi_station_connect;
   default_event_handlers[SYSTEM_EVENT_STA_DISCONNECTED] = wifi_station_disconnect;
   default_event_handlers[SYSTEM_EVENT_STA_GOT_IP] = ignore_event;
   default_event_handlers[SYSTEM_EVENT_STA_LOST_IP] = ignore_event;
-  default_event_handlers[SYSTEM_EVENT_AP_START] = wifi_ap_connect;
-  default_event_handlers[SYSTEM_EVENT_AP_STOP] = wifi_ap_disconnect;
+  default_event_handlers[SYSTEM_EVENT_AP_START] = wifi_ap_start;
+  default_event_handlers[SYSTEM_EVENT_AP_STOP] = wifi_ap_stop;
 
   //Register shutdown handler
   ESP_ERROR_CHECK(esp_register_shutdown_handler((shutdown_handler_t) esp_wifi_stop));
 
   ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
   ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_NULL));
-
 }
 
 int netState()
@@ -204,9 +220,6 @@ int netSend(char* src,int indexsrc,int lentosend,int lensrc,char* macdst,int ind
   if (inddst+6>lendst) return -1;
 
   // printf("netSend: %p, %d, %d, %d, %p, %d, %d, %d\n", src, indexsrc, lentosend, lensrc, macdst, inddst, lendst, speed);
-  #ifdef DUMP_PACKETS
-  hex_dump("netSend", src, lensrc);
-  #endif
 
   // put in the destination mac
   memcpy(wifi_buffer, macdst + inddst, lendst);
@@ -214,6 +227,10 @@ int netSend(char* src,int indexsrc,int lentosend,int lensrc,char* macdst,int ind
   memcpy(wifi_buffer + lendst, src + indexsrc, lentosend);
   // overwrite source macid in the buffer with the real one
   memcpy(wifi_buffer + 6, netMac(), 6);
+
+  #ifdef DUMP_PACKETS
+  hex_dump("netSend", wifi_buffer, lentosend + 12);
+  #endif
 
   esp_wifi_internal_tx(wifi_interface, wifi_buffer, lentosend + 12);
   return 0;
@@ -232,8 +249,6 @@ int netCb(char* src,int lensrc,char* macsrc)
 
   return 0;
 }
-
-static uint8_t mac[6];
 
 char* netMac()
 {
