@@ -4,7 +4,6 @@
 #include"vmem.h"
 
 #define VREAL
-
 #include <string.h>
 
 #ifdef VSIMU
@@ -648,7 +647,6 @@ int audioRead(int reg)
 	if (reg==-1) return vlsi_fifo_ready();
 	return vlsi_read_sci(reg);
 #endif
-	return 0;
 }
 int audioFeed(char *src,int len)
 {
@@ -659,7 +657,6 @@ int audioFeed(char *src,int len)
 #ifdef VREAL
 	return vlsi_feed_sdi((uchar*)src,len);
 #endif
-	return 0;
 }
 void audioRefresh()
 {
