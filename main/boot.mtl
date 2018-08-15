@@ -358,7 +358,7 @@ fun cbnetarp src mac=
 	let strget src 8+7-> op in
 	if op==1 then // req
 	(
-//		Secho "ask ";MACecho src 16+10 1; IPecho src 16+16 1;
+		// Secho "ask ";MACecho src 16+10 1; IPecho src 16+16 1;
 		if !vstrcmp src 32 netip 0 4 then
 			netSend (dump mkarp ARPANS netip strsub src 16 6 strsub src 22 4) 0 nil mac 0 1;
 		nil
@@ -874,8 +874,7 @@ fun startdhcpserver=
 // --------------- net HOOK debut
 
 fun net src mac=
-	Secho "n ";//MACecho mac 0 1;
-//	dump src;
+	Secho "n "; // MACecho mac 0 1; dump src;
 	let strget src 7 -> p in
 	(
 		if p==6 then cbnetarp src mac // ARP
@@ -2973,7 +2972,7 @@ fun main=
   Secholn "Started network";
 //	startconfigserver 8080;
 	sndVol button3;
-//	wavstartlocal midi_start::nil;
+	wavstartlocal midi_start::nil;
 
 	set start=time_ms;
 	setleds if master then 0xff else 0xff00ff;
