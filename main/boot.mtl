@@ -2972,7 +2972,7 @@ fun main=
   Secholn "Started network";
 //	startconfigserver 8080;
 	sndVol button3;
-	wavstartlocal midi_start::nil;
+//	wavstartlocal midi_start::nil;
 
 	set start=time_ms;
 	setleds if master then 0xff else 0xff00ff;
