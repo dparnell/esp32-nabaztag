@@ -116,14 +116,11 @@ esp_err_t wifi_rx_cb(void *buf, uint16_t length, void *eb) {
   hex_dump("wifi_rx_cb", buffer, length);
 #endif
 
-  if(memcmp(buffer, mac, 6) == 0 || memcmp(buffer, BROADCAST_MACID, 6) == 0) {
-    netCb((char*)&buffer[6], length-6, (char*)&buffer[6]);
-  }
+  netCb((char*)&buffer[6], length-6, (char*)&buffer[6]);
 
-  /*
-  play_check(0);
-  rec_check();
-  */
+  //play_check(0);
+  //rec_check();
+
   if(eb != NULL) {
     esp_wifi_internal_free_rx_buffer(eb);
   }
@@ -144,7 +141,7 @@ static esp_err_t wifi_station_start(system_event_t *event) {
 }
 
 static esp_err_t wifi_station_stop(system_event_t *event) {
-  printf("*** wifi_station_start ***\n");
+  printf("*** wifi_station_stop ***\n");
   return esp_wifi_internal_reg_rxcb(ESP_IF_WIFI_STA, NULL);
 }
 
