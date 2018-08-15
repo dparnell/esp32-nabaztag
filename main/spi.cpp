@@ -8,6 +8,10 @@
 #include "soc/io_mux_reg.h"
 #include "soc/gpio_sig_map.h"
 #include "soc/dport_reg.h"
+#include "soc/io_mux_reg.h"
+
+#define FUNC_SPI    1   //all pins of HSPI and VSPI shares this function number
+#define FUNC_GPIO   PIN_FUNC_GPIO
 
 #define SPI_CLK_PIN GPIO_NUM_18
 #define SPI_MISO_PIN GPIO_NUM_19
@@ -31,18 +35,6 @@ void SlowSPI() {
   dev->clock.val = SPI_CLOCK_DIV64;
 }
 
-static void stop_spi() {
-  dev->slave.trans_done = 0;
-  dev->slave.slave_mode = 0;
-  dev->pin.val = 0;
-  dev->user.val = 0;
-  dev->user1.val = 0;
-  dev->ctrl.val = 0;
-  dev->ctrl1.val = 0;
-  dev->ctrl2.val = 0;
-  dev->clock.val = 0;
-}
-
 /****************************************************************************/
 /*  Initialization of the SPI peripheral                                    */
 /*  Function : init_spi                                                     */
@@ -52,17 +44,25 @@ static void stop_spi() {
 /****************************************************************************/
 void init_spi(void)
 {
-  stop_spi();
-
-  // we are using VSPI
   DPORT_SET_PERI_REG_MASK(DPORT_PERIP_CLK_EN_REG, DPORT_SPI_CLK_EN_2);
   DPORT_CLEAR_PERI_REG_MASK(DPORT_PERIP_RST_EN_REG, DPORT_SPI_RST_2);
 
-  // SPI mode 0
+  // stop the SPI bus
+  dev->slave.trans_done = 0;
+  dev->slave.slave_mode = 0;
+  dev->pin.val = 0;
+  dev->user.val = 0;
+  dev->user1.val = 0;
+  dev->ctrl.val = 0;
+  dev->ctrl1.val = 0;
+  dev->ctrl2.val = 0;
+  dev->clock.val = 0;
+
+  // data mode 0
   dev->pin.ck_idle_edge = 0;
   dev->user.ck_out_edge = 0;
 
-  // MSB first
+  // MSB data order
   dev->ctrl.wr_bit_order = 0;
   dev->ctrl.rd_bit_order = 0;
 
@@ -76,15 +76,28 @@ void init_spi(void)
     dev->data_buf[i] = 0x00000000;
   }
 
-  // attach the GPIO pins
+  // attach the pins
+  PIN_FUNC_SELECT(GPIO_PIN_MUX_REG[SPI_CLK_PIN], FUNC_SPI);
   gpio_set_direction(SPI_CLK_PIN, GPIO_MODE_OUTPUT);
-  gpio_matrix_out(SPI_CLK_PIN, VSPICLK_OUT_IDX, FALSE, FALSE);
+  gpio_matrix_out(SPI_CLK_PIN, VSPICLK_OUT_IDX, false, false);
 
+  PIN_FUNC_SELECT(GPIO_PIN_MUX_REG[SPI_MISO_PIN], FUNC_SPI);
   gpio_set_direction(SPI_MISO_PIN, GPIO_MODE_INPUT);
-  gpio_matrix_out(SPI_MISO_PIN, VSPIQ_OUT_IDX, FALSE, FALSE);
+  gpio_matrix_in(SPI_MISO_PIN, VSPIQ_OUT_IDX, false);
 
+  PIN_FUNC_SELECT(GPIO_PIN_MUX_REG[SPI_MOSI_PIN], FUNC_SPI);
   gpio_set_direction(SPI_MOSI_PIN, GPIO_MODE_OUTPUT);
-  gpio_matrix_out(SPI_MOSI_PIN, VSPID_IN_IDX, FALSE, FALSE);
+  gpio_matrix_out(SPI_MOSI_PIN, VSPID_IN_IDX, false, false);
+}
+
+
+unsigned char TransferSPI(unsigned char data) {
+  dev->mosi_dlen.usr_mosi_dbitlen = 7;
+  dev->miso_dlen.usr_miso_dbitlen = 7;
+  dev->data_buf[0] = data;
+  dev->cmd.usr = 1;
+  while(dev->cmd.usr);
+  return dev->data_buf[0] & 0xFF;
 }
 
 /****************************************************************************/
@@ -94,13 +107,9 @@ void init_spi(void)
 /*          Input   :   Byte to send                                        */
 /*          Output  :   Nothing                                             */
 /****************************************************************************/
-void WriteSPI(UBYTE data_out)
+void WriteSPI(unsigned char data_out)
 {
-  dev->mosi_dlen.usr_mosi_dbitlen = 7;
-  dev->miso_dlen.usr_miso_dbitlen = 0;
-  dev->data_buf[0] = data_out;
-  dev->cmd.usr = 1;
-  while(dev->cmd.usr);
+  TransferSPI(data_out);
 }
 
 /****************************************************************************/
@@ -110,15 +119,7 @@ void WriteSPI(UBYTE data_out)
 /*          Input   :   Nothing                                             */
 /*          Output  :   Return of the byte received                         */
 /****************************************************************************/
-UBYTE ReadSPI(void)
+unsigned char ReadSPI(void)
 {
-  UBYTE read_char;
-  dev->mosi_dlen.usr_mosi_dbitlen = 0;
-  dev->miso_dlen.usr_miso_dbitlen = 7;
-  dev->cmd.usr = 1;
-  while(dev->cmd.usr);
-  read_char = dev->data_buf[0] & 0xFF;
-
-  //Return success
-  return read_char;
+  return TransferSPI(0xff);
 }
