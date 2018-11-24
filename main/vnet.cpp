@@ -20,7 +20,29 @@
 extern int lockInterp();
 extern void unlockInterp();
 
-extern "C" system_event_handler_t default_event_handlers[SYSTEM_EVENT_MAX];
+static system_event_handler_t default_event_handlers[SYSTEM_EVENT_MAX] = { 0 };
+
+esp_err_t esp_event_process_default(system_event_t *event)
+{
+    if (event == NULL) {
+        // ESP_LOGE(TAG, "Error: event is null!");
+        return ESP_FAIL;
+    }
+
+    // esp_system_event_debug(event);
+    if ((event->event_id < SYSTEM_EVENT_MAX)) {
+        if (default_event_handlers[event->event_id] != NULL) {
+            // ESP_LOGV(TAG, "enter default callback");
+            default_event_handlers[event->event_id](event);
+            // ESP_LOGV(TAG, "exit default callback");
+        }
+    } else {
+        // ESP_LOGE(TAG, "mismatch or invalid event, id=%d", event->event_id);
+        return ESP_FAIL;
+    }
+    return ESP_OK;
+}
+
 
 static int wifi_initialized = 0;
 static int wifi_status = 1;  // RT2501_S_IDLE
