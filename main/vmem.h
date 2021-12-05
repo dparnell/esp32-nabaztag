@@ -12,6 +12,7 @@
 // taille en mots 32 bits (128kwords -> 512ko)
 #ifdef USE_SPI_SRAM
 #define VMEM_LENGTH	(1024*200)
+// the SPI RAM is mapped at 0x3F800000
 #define vmem_heap ((int*)(0x3F800000))
 #else
 #define VMEM_LENGTH	(1024*32)

@@ -3,4 +3,4 @@ build
 *~
 CMakeLists.txt
 .vscode
-sdkconfig.esp32dev
+sdkconfig.*

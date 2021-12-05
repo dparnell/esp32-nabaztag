@@ -81,7 +81,7 @@ void unlockInterp() {
 }
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(9600);
 
   vSemaphoreCreateBinary( xSemaphore );
   gpio_set_direction(BUTTON_1_PIN, GPIO_MODE_INPUT);
@@ -92,19 +92,24 @@ void setup() {
     pixels[i] = makeRGBVal(0, 0, 0);
   }
 
+  printf("Initializing SPI...\n");
   init_spi();
   //Init Audio
   init_vlsi();
 
+  printf("Clearing LEDs...\n");
   ws2812_show();
 
+  printf("Initializing loader...\n");
   loaderInit((char*)dumpbc_bin);
 
+  printf("Starting the interpreter...\n");
   lockInterp();
   VPUSH(INTTOVAL(0));
   interpGo();
   VDROP();
   unlockInterp();
+  printf("Setup finished\n");
 }
 
 void loop() {
