@@ -4,11 +4,12 @@
 #include "esp_system.h"
 #include "soc/spi_reg.h"
 #include "soc/spi_struct.h"
-#include "rom/gpio.h"
+#include "esp32/rom/gpio.h"
 #include "soc/io_mux_reg.h"
 #include "soc/gpio_sig_map.h"
 #include "soc/dport_reg.h"
 #include "soc/io_mux_reg.h"
+#include "driver/gpio.h"
 
 #define FUNC_SPI    1   //all pins of HSPI and VSPI shares this function number
 #define FUNC_GPIO   PIN_FUNC_GPIO
@@ -17,13 +18,20 @@
 #define SPI_MISO_PIN GPIO_NUM_19
 #define SPI_MOSI_PIN GPIO_NUM_23
 
-#define SPI_CLOCK_DIV2    0x00101001 //8 MHz
-#define SPI_CLOCK_DIV4    0x00241001 //4 MHz
-#define SPI_CLOCK_DIV8    0x004c1001 //2 MHz
-#define SPI_CLOCK_DIV16   0x009c1001 //1 MHz
-#define SPI_CLOCK_DIV32   0x013c1001 //500 KHz
-#define SPI_CLOCK_DIV64   0x027c1001 //250 KHz
-#define SPI_CLOCK_DIV128  0x04fc1001 //125 KHz
+//8 MHz
+#define SPI_CLOCK_DIV2    0x00101001
+//4 MHz
+#define SPI_CLOCK_DIV4    0x00241001
+//2 MHz
+#define SPI_CLOCK_DIV8    0x004c1001
+//1 MHz
+#define SPI_CLOCK_DIV16   0x009c1001
+//500 KHz
+#define SPI_CLOCK_DIV32   0x013c1001
+//250 KHz
+#define SPI_CLOCK_DIV64   0x027c1001
+//125 KHz
+#define SPI_CLOCK_DIV128  0x04fc1001
 
 static volatile spi_dev_t * dev = (volatile spi_dev_t *)(DR_REG_SPI3_BASE);
 
@@ -44,8 +52,8 @@ void SlowSPI() {
 /****************************************************************************/
 void init_spi(void)
 {
-  DPORT_SET_PERI_REG_MASK(DPORT_PERIP_CLK_EN_REG, DPORT_SPI_CLK_EN_2);
-  DPORT_CLEAR_PERI_REG_MASK(DPORT_PERIP_RST_EN_REG, DPORT_SPI_RST_2);
+  DPORT_SET_PERI_REG_MASK(DPORT_PERIP_CLK_EN_REG, DPORT_SPI2_CLK_EN);
+  DPORT_CLEAR_PERI_REG_MASK(DPORT_PERIP_RST_EN_REG, DPORT_SPI2_RST);
 
   // stop the SPI bus
   dev->slave.trans_done = 0;

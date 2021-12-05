@@ -1,3 +1,6 @@
 build
 *.old
 *~
+CMakeLists.txt
+.vscode
+sdkconfig.esp32dev

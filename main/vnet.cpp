@@ -11,7 +11,7 @@
 //#include "audio.h"
 
 #include "esp_wifi.h"
-#include "esp_wifi_internal.h"
+//#include "esp_wifi_internal.h"
 #include <esp_event_loop.h>
 #include "esp_task_wdt.h"
 
@@ -20,7 +20,7 @@
 extern int lockInterp();
 extern void unlockInterp();
 
-static system_event_handler_t default_event_handlers[SYSTEM_EVENT_MAX] = { 0 };
+// static system_event_handler_t default_event_handlers[SYSTEM_EVENT_MAX] = { 0 };
 
 esp_err_t esp_event_process_default(system_event_t *event)
 {
@@ -46,7 +46,7 @@ esp_err_t esp_event_process_default(system_event_t *event)
 
 static int wifi_initialized = 0;
 static int wifi_status = 1;  // RT2501_S_IDLE
-static wifi_interface_t wifi_interface = ESP_IF_WIFI_STA;
+static wifi_interface_t wifi_interface = WIFI_IF_STA;
 static char wifi_ssid[32];
 static char wifi_password[64];
 

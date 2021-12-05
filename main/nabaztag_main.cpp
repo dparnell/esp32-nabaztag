@@ -9,8 +9,6 @@
 #include "esp_system.h"
 #include "esp_task_wdt.h"
 
-#include "soc/rtc.h"
-
 #include "vmem.h"
 #include "vloader.h"
 #include "vinterp.h"
@@ -84,9 +82,6 @@ void unlockInterp() {
 
 void setup() {
   Serial.begin(115200);
-
-  // speed up the CPU
-  rtc_clk_cpu_freq_set(RTC_CPU_FREQ_240M);
 
   vSemaphoreCreateBinary( xSemaphore );
   gpio_set_direction(BUTTON_1_PIN, GPIO_MODE_INPUT);
