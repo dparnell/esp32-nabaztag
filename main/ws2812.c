@@ -60,7 +60,7 @@ rgbVal* ws2812_init() {
 
 	rmt_config_t config;
 	config.rmt_mode                  = RMT_MODE_TX;
-	config.channel                   = 0; // RMT_CHANNEL_0
+	config.channel                   = RMT_CHANNEL_0;
 	config.gpio_num                  = PIXEL_PIN;
 	config.mem_block_num             = 8;
 	config.clk_div                   = 8;
@@ -71,7 +71,6 @@ rgbVal* ws2812_init() {
 	config.tx_config.carrier_freq_hz = 10000;
 	config.tx_config.carrier_level   = (rmt_carrier_level_t)1;
 	config.tx_config.carrier_duty_percent = 50;
-
 
 	ESP_ERROR_CHECK(rmt_config(&config));
 	ESP_ERROR_CHECK(rmt_driver_install(0, 0, 0));

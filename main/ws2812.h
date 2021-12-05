@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define PIXEL_COUNT 22
+#define PIXEL_COUNT 5
 #define PIXEL_PIN GPIO_NUM_22
 #define PIXELS_RGB
 

@@ -242,7 +242,6 @@ int netChk(char* src, int indexsrc, int lentosend, int lensrc, unsigned int val)
 
 void netSetmode(int mode, char* ssid, int _chn)
 {
-  wifi_initialized = 1;
   // stop any existing WiFi connection
   // ESP_ERROR_CHECK(esp_wifi_stop());
 
@@ -253,49 +252,52 @@ void netSetmode(int mode, char* ssid, int _chn)
   if(mode == 1) {
     printf("netSetMode: %d - %s\n", mode, ssid);
     // set access point mode
-    wifi_interface = WIFI_IF_AP;
+    if(wifi_interface != WIFI_IF_AP || !wifi_initialized) {
+      wifi_interface = WIFI_IF_AP;
 
-    wifi_config_t ap_config;
+      wifi_config_t ap_config;
 
-    strcpy((char*)&ap_config.ap.ssid[0], ssid);
-    ap_config.ap.ssid_len = strlen(ssid);
-    ap_config.ap.channel = 0;
-    ap_config.ap.authmode = WIFI_AUTH_OPEN;
-    ap_config.ap.ssid_hidden = 0;
-    ap_config.ap.max_connection = 4;
-    ap_config.ap.beacon_interval = 100;
+      strcpy((char*)&ap_config.ap.ssid[0], ssid);
+      ap_config.ap.ssid_len = strlen(ssid);
+      ap_config.ap.channel = 0;
+      ap_config.ap.authmode = WIFI_AUTH_OPEN;
+      ap_config.ap.ssid_hidden = 0;
+      ap_config.ap.max_connection = 4;
+      ap_config.ap.beacon_interval = 100;
 
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config));
-    ESP_ERROR_CHECK(esp_wifi_start());
-  } else {
-    wifi_config_t wifi_config;
-    memset(&wifi_config, 0, sizeof(wifi_config));
-
-    strncpy((char*)wifi_config.sta.ssid, wifi_ssid, sizeof(wifi_config.sta.ssid));
-    strncpy((char*)wifi_config.sta.password, wifi_password, sizeof(wifi_config.sta.password));
-
-    printf("netSetMode: %d - %s : %s\n", mode, wifi_ssid, wifi_password);
-    // set station mode
-    wifi_interface = WIFI_IF_STA;
-
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
-    ESP_ERROR_CHECK(esp_wifi_start());
-    ESP_ERROR_CHECK(esp_wifi_connect());
-
-    int countdown = 600;
-    wifi_status = 3;
-    printf("Connecting.");
-    while(countdown-- && wifi_status == 3) {
-      vTaskDelay(100 / portTICK_PERIOD_MS);
-      printf(".");
-      esp_task_wdt_reset();
+      ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
+      ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config));
+      ESP_ERROR_CHECK(esp_wifi_start());
     }
+  } else {
+    if(wifi_interface != WIFI_IF_STA || !wifi_initialized) {
+      wifi_config_t wifi_config;
+      memset(&wifi_config, 0, sizeof(wifi_config));
 
-    printf("\n");
+      strncpy((char*)wifi_config.sta.ssid, wifi_ssid, sizeof(wifi_config.sta.ssid));
+      strncpy((char*)wifi_config.sta.password, wifi_password, sizeof(wifi_config.sta.password));
+
+      printf("netSetMode: %d - %s : %s\n", mode, wifi_ssid, wifi_password);
+      // set station mode
+      wifi_interface = WIFI_IF_STA;
+
+      ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+      ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
+      ESP_ERROR_CHECK(esp_wifi_start());
+      ESP_ERROR_CHECK(esp_wifi_connect());
+  /*
+      int countdown = 600;
+      wifi_status = 3;
+      printf("Connecting.");
+      while(countdown-- && wifi_status == 3) {
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+        printf(".");
+        esp_task_wdt_reset();
+      }
+  */
+    }
   }
-
+  wifi_initialized = 1;
 }
 
 static uint16_t nscan = 10;
