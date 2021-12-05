@@ -10,39 +10,20 @@
 #include "vinterp.h"
 //#include "audio.h"
 
+#include "esp_log.h"
 #include "esp_wifi.h"
+#include "esp_netif.h"
 //#include "esp_wifi_internal.h"
-#include <esp_event_loop.h>
+#include <esp_event.h>
 #include "esp_task_wdt.h"
+#include "esp_private/wifi.h"
 
 // #define DUMP_PACKETS
 
+#define TAG "VNET"
+
 extern int lockInterp();
 extern void unlockInterp();
-
-// static system_event_handler_t default_event_handlers[SYSTEM_EVENT_MAX] = { 0 };
-
-esp_err_t esp_event_process_default(system_event_t *event)
-{
-    if (event == NULL) {
-        // ESP_LOGE(TAG, "Error: event is null!");
-        return ESP_FAIL;
-    }
-
-    // esp_system_event_debug(event);
-    if ((event->event_id < SYSTEM_EVENT_MAX)) {
-        if (default_event_handlers[event->event_id] != NULL) {
-            // ESP_LOGV(TAG, "enter default callback");
-            default_event_handlers[event->event_id](event);
-            // ESP_LOGV(TAG, "exit default callback");
-        }
-    } else {
-        // ESP_LOGE(TAG, "mismatch or invalid event, id=%d", event->event_id);
-        return ESP_FAIL;
-    }
-    return ESP_OK;
-}
-
 
 static int wifi_initialized = 0;
 static int wifi_status = 1;  // RT2501_S_IDLE
@@ -55,6 +36,20 @@ static uint8_t mac[6];
 
 const char * system_event_reasons[] = { "UNSPECIFIED", "AUTH_EXPIRE", "AUTH_LEAVE", "ASSOC_EXPIRE", "ASSOC_TOOMANY", "NOT_AUTHED", "NOT_ASSOCED", "ASSOC_LEAVE", "ASSOC_NOT_AUTHED", "DISASSOC_PWRCAP_BAD", "DISASSOC_SUPCHAN_BAD", "IE_INVALID", "MIC_FAILURE", "4WAY_HANDSHAKE_TIMEOUT", "GROUP_KEY_UPDATE_TIMEOUT", "IE_IN_4WAY_DIFFERS", "GROUP_CIPHER_INVALID", "PAIRWISE_CIPHER_INVALID", "AKMP_INVALID", "UNSUPP_RSN_IE_VERSION", "INVALID_RSN_IE_CAP", "802_1X_AUTH_FAILED", "CIPHER_SUITE_REJECTED", "BEACON_TIMEOUT", "NO_AP_FOUND", "AUTH_FAIL", "ASSOC_FAIL", "HANDSHAKE_TIMEOUT" };
 #define reason2str(r) ((r>176)?system_event_reasons[r-177]:system_event_reasons[r-1])
+
+esp_err_t wifi_rx_cb(void *buf, uint16_t length, void *eb) {
+  char *buffer = (char*)buf;
+#ifdef DUMP_PACKETS
+  hex_dump("wifi_rx_cb", buffer, length);
+#endif
+
+  netCb((char*)&buffer[6], length-6, (char*)&buffer[6]);
+
+  //play_check(0);
+  //rec_check();
+
+  return ESP_OK;
+}
 
 static esp_err_t _network_event_cb(void *arg, system_event_t *event){
   if(event->event_id == SYSTEM_EVENT_SCAN_DONE) {
@@ -69,12 +64,14 @@ static esp_err_t _network_event_cb(void *arg, system_event_t *event){
   } else if(event->event_id == SYSTEM_EVENT_AP_START) {
     printf("***SYSTEM_EVENT_AP_START\n");
     wifi_status = 5; // RT2501_S_MASTER
+    esp_wifi_internal_reg_rxcb(WIFI_IF_AP, wifi_rx_cb);
   } else if(event->event_id == SYSTEM_EVENT_AP_STOP) {
     printf("***SYSTEM_EVENT_AP_STOP\n");
     wifi_status = 1; // RT2501_S_IDLE
   } else if(event->event_id == SYSTEM_EVENT_STA_START) {
     printf("***SYSTEM_EVENT_STA_START\n");
     esp_wifi_connect();
+    esp_wifi_internal_reg_rxcb(WIFI_IF_STA, wifi_rx_cb);
     wifi_status = 3; // RT2501_S_IDLE
   } else if(event->event_id == SYSTEM_EVENT_STA_STOP) {
     printf("***SYSTEM_EVENT_STA_STOP\n");
@@ -132,61 +129,6 @@ void hex_dump(const char *title, const void *data, size_t size) {
 }
 #endif
 
-esp_err_t wifi_rx_cb(void *buf, uint16_t length, void *eb) {
-  char *buffer = (char*)buf;
-#ifdef DUMP_PACKETS
-  hex_dump("wifi_rx_cb", buffer, length);
-#endif
-
-  netCb((char*)&buffer[6], length-6, (char*)&buffer[6]);
-
-  //play_check(0);
-  //rec_check();
-
-  if(eb != NULL) {
-    esp_wifi_internal_free_rx_buffer(eb);
-  }
-
-  return ESP_OK;
-}
-
-static esp_err_t ignore_event(system_event_t *event) {
-  printf("Ignoring event: %d\n", event->event_id);
-  // _network_event_cb(NULL, event);
-
-  return ESP_OK;
-}
-
-static esp_err_t wifi_station_start(system_event_t *event) {
-  printf("*** wifi_station_start ***\n");
-  return esp_wifi_internal_reg_rxcb(ESP_IF_WIFI_STA, wifi_rx_cb);
-}
-
-static esp_err_t wifi_station_stop(system_event_t *event) {
-  printf("*** wifi_station_stop ***\n");
-  return esp_wifi_internal_reg_rxcb(ESP_IF_WIFI_STA, NULL);
-}
-
-static esp_err_t wifi_station_connect(system_event_t *event) {
-  printf("*** wifi_station_connect ***\n");
-  return esp_wifi_internal_reg_rxcb(ESP_IF_WIFI_STA, wifi_rx_cb);
-}
-
-static esp_err_t wifi_station_disconnect(system_event_t *event) {
-  printf("*** wifi_station_disconnect ***\n");
-  return esp_wifi_internal_reg_rxcb(ESP_IF_WIFI_STA, NULL);
-}
-
-static esp_err_t wifi_ap_start(system_event_t *event) {
-  printf("*** wifi_ap_start ***\n");
-  return esp_wifi_internal_reg_rxcb(ESP_IF_WIFI_AP, wifi_rx_cb);
-}
-
-static esp_err_t wifi_ap_stop(system_event_t *event) {
-  printf("*** wifi_ap_stop ***\n");
-  return esp_wifi_internal_reg_rxcb(ESP_IF_WIFI_AP, NULL);
-}
-
 void netInit() {
   printf("Initializing WiFi network settings...\n");
   wifi_initialized = 0;
@@ -197,16 +139,6 @@ void netInit() {
   printf("Loading default WiFi settings...\n");
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
   ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-
-  //Register event handlers
-  default_event_handlers[SYSTEM_EVENT_STA_START] = wifi_station_start;
-  default_event_handlers[SYSTEM_EVENT_STA_STOP] = wifi_station_stop;
-  default_event_handlers[SYSTEM_EVENT_STA_CONNECTED] = wifi_station_connect;
-  default_event_handlers[SYSTEM_EVENT_STA_DISCONNECTED] = wifi_station_disconnect;
-  default_event_handlers[SYSTEM_EVENT_STA_GOT_IP] = ignore_event;
-  default_event_handlers[SYSTEM_EVENT_STA_LOST_IP] = ignore_event;
-  default_event_handlers[SYSTEM_EVENT_AP_START] = wifi_ap_start;
-  default_event_handlers[SYSTEM_EVENT_AP_STOP] = wifi_ap_stop;
 
   //Register shutdown handler
   ESP_ERROR_CHECK(esp_register_shutdown_handler((shutdown_handler_t) esp_wifi_stop));
@@ -321,7 +253,7 @@ void netSetmode(int mode, char* ssid, int _chn)
   if(mode == 1) {
     printf("netSetMode: %d - %s\n", mode, ssid);
     // set access point mode
-    wifi_interface = ESP_IF_WIFI_AP;
+    wifi_interface = WIFI_IF_AP;
 
     wifi_config_t ap_config;
 
@@ -345,7 +277,7 @@ void netSetmode(int mode, char* ssid, int _chn)
 
     printf("netSetMode: %d - %s : %s\n", mode, wifi_ssid, wifi_password);
     // set station mode
-    wifi_interface = ESP_IF_WIFI_STA;
+    wifi_interface = WIFI_IF_STA;
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
