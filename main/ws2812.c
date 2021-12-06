@@ -2,6 +2,19 @@
 #include <driver/rmt.h>
 #include <driver/gpio.h>
 
+#define F_CPU (CONFIG_ESP32_DEFAULT_CPU_FREQ_MHZ * 1000000U)
+#define CLOCKLESS_FREQUENCY F_CPU
+#define DIVIDER 2
+#define F_CPU_RMT                   (  APB_CLK_FREQ )
+#define RMT_CYCLES_PER_SEC          (F_CPU_RMT/DIVIDER)
+#define RMT_CYCLES_PER_ESP_CYCLE    (F_CPU / RMT_CYCLES_PER_SEC)
+#define ESP_TO_RMT_CYCLES(n)        ((n) / (RMT_CYCLES_PER_ESP_CYCLE))
+#define C_NS(_NS) (((_NS * ((CLOCKLESS_FREQUENCY / 1000000L)) + 999)) / 1000)
+
+#define T1 C_NS(250)
+#define T2 C_NS(625)
+#define T3 C_NS(375)
+
 /**
  * A NeoPixel is defined by 3 bytes ... red, green and blue.
  * Each byte is composed of 8 bits ... therefore a NeoPixel is 24 bits of data.
@@ -14,30 +27,24 @@
 
 /**
  * Set two levels of RMT output to the Neopixel value for a "1".
- * This is:
- * a logic 1 for 0.7us
- * a logic 0 for 0.6us
  */
 static void setItem1(rmt_item32_t *pItem) {
 	pItem->level0    = 1;
-	pItem->duration0 = 10;
+	pItem->duration0 = ESP_TO_RMT_CYCLES(T1+T2);
 	pItem->level1    = 0;
-	pItem->duration1 = 6;
+	pItem->duration1 = ESP_TO_RMT_CYCLES(T3);
 } // setItem1
 
 
 
 /**
  * Set two levels of RMT output to the Neopixel value for a "0".
- * This is:
- * a logic 1 for 0.35us
- * a logic 0 for 0.8us
  */
 static void setItem0(rmt_item32_t *pItem) {
 	pItem->level0    = 1;
-	pItem->duration0 = 4;
+	pItem->duration0 = ESP_TO_RMT_CYCLES(T1);
 	pItem->level1    = 0;
-	pItem->duration1 = 8;
+	pItem->duration1 = ESP_TO_RMT_CYCLES(T2+T3);
 } // setItem0
 
 
@@ -46,9 +53,9 @@ static void setItem0(rmt_item32_t *pItem) {
  */
 static void setTerminator(rmt_item32_t *pItem) {
 	pItem->level0    = 0;
-	pItem->duration0 = 0;
+	pItem->duration0 = ESP_TO_RMT_CYCLES(T1+T2+T3);
 	pItem->level1    = 0;
-	pItem->duration1 = 0;
+	pItem->duration1 = ESP_TO_RMT_CYCLES(T1+T2+T3);
 } // setTerminator
 
 
@@ -59,21 +66,19 @@ rgbVal* ws2812_init() {
   gpio_set_direction(PIXEL_PIN, GPIO_MODE_OUTPUT);
 
 	rmt_config_t config;
-	config.rmt_mode                  = RMT_MODE_TX;
-	config.channel                   = RMT_CHANNEL_0;
-	config.gpio_num                  = PIXEL_PIN;
-	config.mem_block_num             = 8;
-	config.clk_div                   = 8;
-	config.tx_config.loop_en         = 0;
-	config.tx_config.carrier_en      = 0;
-	config.tx_config.idle_output_en  = 1;
-	config.tx_config.idle_level      = (rmt_idle_level_t)0;
-	config.tx_config.carrier_freq_hz = 10000;
-	config.tx_config.carrier_level   = (rmt_carrier_level_t)1;
-	config.tx_config.carrier_duty_percent = 50;
+  config.channel = RMT_CHANNEL_0;
+  config.rmt_mode = RMT_MODE_TX;
+  config.gpio_num = PIXEL_PIN;
+  config.mem_block_num = 1;
+  config.clk_div = DIVIDER;
+  config.tx_config.loop_en = false;
+  config.tx_config.carrier_level = RMT_CARRIER_LEVEL_LOW;
+  config.tx_config.carrier_en = false;
+  config.tx_config.idle_level = RMT_IDLE_LEVEL_LOW;
+  config.tx_config.idle_output_en = true;
 
 	ESP_ERROR_CHECK(rmt_config(&config));
-	ESP_ERROR_CHECK(rmt_driver_install(0, 0, 0));
+	ESP_ERROR_CHECK(rmt_driver_install(config.channel, 0, 0));
 
   return pixels;
 }

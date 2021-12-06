@@ -270,6 +270,9 @@ void netSetmode(int mode, char* ssid, int _chn)
       ESP_ERROR_CHECK(esp_wifi_start());
     }
   } else {
+    printf("netSetMode: %d - %s : %s\n", mode, wifi_ssid, wifi_password);
+    // set station mode
+
     if(wifi_interface != WIFI_IF_STA || !wifi_initialized) {
       wifi_config_t wifi_config;
       memset(&wifi_config, 0, sizeof(wifi_config));
@@ -277,8 +280,6 @@ void netSetmode(int mode, char* ssid, int _chn)
       strncpy((char*)wifi_config.sta.ssid, wifi_ssid, sizeof(wifi_config.sta.ssid));
       strncpy((char*)wifi_config.sta.password, wifi_password, sizeof(wifi_config.sta.password));
 
-      printf("netSetMode: %d - %s : %s\n", mode, wifi_ssid, wifi_password);
-      // set station mode
       wifi_interface = WIFI_IF_STA;
 
       ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
