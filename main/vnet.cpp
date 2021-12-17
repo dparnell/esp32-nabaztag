@@ -136,9 +136,6 @@ static esp_err_t _network_event_cb(void *arg, system_event_t *event){
   return ESP_OK;
 }
 
-
-
-
 void netInit() {
   printf("Initializing WiFi network settings...\n");
   wifi_initialized = 0;
