@@ -81,7 +81,7 @@ void unlockInterp() {
 }
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
 
   pixels = ws2812_init();
   for(int i=0; i < PIXEL_COUNT; i++) {
