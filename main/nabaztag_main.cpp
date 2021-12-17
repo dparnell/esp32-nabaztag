@@ -83,22 +83,25 @@ void unlockInterp() {
 void setup() {
   Serial.begin(9600);
 
-  vSemaphoreCreateBinary( xSemaphore );
-  gpio_set_direction(BUTTON_1_PIN, GPIO_MODE_INPUT);
-
-  netInit();
   pixels = ws2812_init();
   for(int i=0; i < PIXEL_COUNT; i++) {
     pixels[i] = makeRGBVal(0, 0, 0);
   }
 
-  printf("Initializing SPI...\n");
-  init_spi();
-  //Init Audio
-  init_vlsi();
-
   printf("Clearing LEDs...\n");
   ws2812_show();
+
+  vSemaphoreCreateBinary( xSemaphore );
+  gpio_set_direction(BUTTON_1_PIN, GPIO_MODE_INPUT);
+  gpio_set_pull_mode(BUTTON_1_PIN, GPIO_PULLDOWN_ONLY);
+
+  netInit();
+
+  printf("Initializing SPI...\n");
+  init_spi();
+
+  //Init Audio
+  init_vlsi();
 
   printf("Initializing loader...\n");
   loaderInit((char*)dumpbc_bin);
