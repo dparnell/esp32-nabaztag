@@ -65,6 +65,7 @@ static esp_err_t _network_event_cb(void *arg, system_event_t *event){
     printf("***SYSTEM_EVENT_AP_START\n");
     wifi_status = 5; // RT2501_S_MASTER
     esp_wifi_internal_reg_rxcb(WIFI_IF_AP, wifi_rx_cb);
+
   } else if(event->event_id == SYSTEM_EVENT_AP_STOP) {
     printf("***SYSTEM_EVENT_AP_STOP\n");
     wifi_status = 1; // RT2501_S_IDLE
@@ -72,6 +73,7 @@ static esp_err_t _network_event_cb(void *arg, system_event_t *event){
     printf("***SYSTEM_EVENT_STA_START\n");
     esp_wifi_connect();
     esp_wifi_internal_reg_rxcb(WIFI_IF_STA, wifi_rx_cb);
+
     wifi_status = 3; // RT2501_S_IDLE
   } else if(event->event_id == SYSTEM_EVENT_STA_STOP) {
     printf("***SYSTEM_EVENT_STA_STOP\n");
@@ -82,6 +84,10 @@ static esp_err_t _network_event_cb(void *arg, system_event_t *event){
   } else if(event->event_id == SYSTEM_EVENT_STA_GOT_IP) {
     printf("***SYSTEM_EVENT_STA_GOT_IP\n");
     wifi_status = 4; // RT2501_S_CONNECTED
+  } else if(event->event_id == SYSTEM_EVENT_AP_STACONNECTED) {
+    printf("****SYSTEM_EVENT_AP_STACONNECTED\n");
+  } else if(event->event_id == SYSTEM_EVENT_AP_STADISCONNECTED) {
+    printf("****SYSTEM_EVENT_AP_STADISCONNECTED\n");
   } else {
     printf("*** UNKNOWN SYSTEM EVENT: %d\n", event->event_id);
   }
@@ -134,7 +140,7 @@ void netInit() {
   wifi_initialized = 0;
   wifi_status = 1; // IDLE
 
-  esp_event_loop_init(&_network_event_cb, NULL);
+  ESP_ERROR_CHECK(esp_event_loop_init(&_network_event_cb, NULL));
 
   printf("Loading default WiFi settings...\n");
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
@@ -153,9 +159,11 @@ int netState()
     wifi_mode_t mode;
     esp_wifi_get_mode(&mode);
     if(mode == WIFI_MODE_AP) {
-      return 5; // RT2501_S_MASTER
+      wifi_status = 5; // RT2501_S_MASTER
     }
   }
+
+  // printf("netState: %d - %d\n", wifi_initialized, wifi_status);
 
   return wifi_status;
 }
@@ -245,12 +253,18 @@ void netSetmode(int mode, char* ssid, int _chn)
   // stop any existing WiFi connection
   // ESP_ERROR_CHECK(esp_wifi_stop());
 
-  wifi_init_config_t wifiInitializationConfig = WIFI_INIT_CONFIG_DEFAULT();
-  ESP_ERROR_CHECK(esp_wifi_init(&wifiInitializationConfig));
-  ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
+  if(!wifi_initialized) {
+    wifi_init_config_t wifiInitializationConfig = WIFI_INIT_CONFIG_DEFAULT();
+    ESP_ERROR_CHECK(esp_wifi_init(&wifiInitializationConfig));
+    ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
+  }
 
   if(mode == 1) {
     printf("netSetMode: %d - %s\n", mode, ssid);
+
+    // connect up the rx callback
+    esp_wifi_internal_reg_rxcb(WIFI_IF_AP, wifi_rx_cb);
+
     // set access point mode
     if(wifi_interface != WIFI_IF_AP || !wifi_initialized) {
       wifi_interface = WIFI_IF_AP;
@@ -268,11 +282,15 @@ void netSetmode(int mode, char* ssid, int _chn)
       ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
       ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config));
       ESP_ERROR_CHECK(esp_wifi_start());
+
+      esp_wifi_internal_reg_rxcb(WIFI_IF_AP, wifi_rx_cb);
     }
   } else {
     printf("netSetMode: %d - %s : %s\n", mode, wifi_ssid, wifi_password);
-    // set station mode
 
+    esp_wifi_internal_reg_rxcb(WIFI_IF_STA, wifi_rx_cb);
+
+    // set station mode
     if(wifi_interface != WIFI_IF_STA || !wifi_initialized) {
       wifi_config_t wifi_config;
       memset(&wifi_config, 0, sizeof(wifi_config));
@@ -286,6 +304,9 @@ void netSetmode(int mode, char* ssid, int _chn)
       ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
       ESP_ERROR_CHECK(esp_wifi_start());
       ESP_ERROR_CHECK(esp_wifi_connect());
+
+      esp_wifi_internal_reg_rxcb(WIFI_IF_STA, wifi_rx_cb);
+
   /*
       int countdown = 600;
       wifi_status = 3;
